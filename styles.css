@@ -21,6 +21,8 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
     color: var(--text-dark);
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
 }
 
 .container {
@@ -62,6 +64,7 @@ body {
     text-decoration: none;
     font-weight: 500;
     transition: color 0.3s;
+    padding: 8px 4px;
 }
 
 .nav-menu a:hover {
@@ -80,6 +83,19 @@ body {
     background: var(--white);
     margin: 3px 0;
     transition: 0.3s;
+    transform-origin: center;
+}
+
+.hamburger.active span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(6px, -6px);
 }
 
 /* Hero Section */
@@ -436,6 +452,16 @@ body {
     margin: 0.3rem 0;
 }
 
+.contact-item a {
+    color: var(--primary-blue);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.contact-item a:hover {
+    color: var(--teal);
+}
+
 .contact-form form {
     display: flex;
     flex-direction: column;
@@ -525,6 +551,8 @@ body {
 }
 
 /* Responsive Design */
+
+/* Tablet landscape */
 @media (max-width: 968px) {
     .nav-menu {
         position: fixed;
@@ -535,15 +563,32 @@ body {
         width: 100%;
         text-align: center;
         transition: 0.3s;
-        padding: 2rem 0;
+        padding: 1rem 0;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        z-index: 999;
     }
 
     .nav-menu.active {
         left: 0;
     }
 
+    .nav-menu a {
+        display: block;
+        padding: 14px 20px;
+        font-size: 1.1rem;
+    }
+
     .hamburger {
         display: flex;
+        padding: 10px;
+        min-width: 44px;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hero {
+        padding: 120px 20px 80px;
     }
 
     .hero-content h1 {
@@ -556,18 +601,22 @@ body {
 
     .content-grid {
         grid-template-columns: 1fr;
+        gap: 2rem;
     }
 
     .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
     }
 
     .vmg-grid {
         grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
 
     .services-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
     }
 
     .features-grid {
@@ -576,28 +625,278 @@ body {
 
     .contact-grid {
         grid-template-columns: 1fr;
+        gap: 2rem;
     }
 
     .footer-content {
         grid-template-columns: 1fr;
         text-align: center;
+        gap: 1.5rem;
     }
 
     .footer-logo {
         margin: 0 auto 1rem;
     }
+
+    .section {
+        padding: 60px 16px;
+    }
+
+    .vmg-section {
+        padding: 60px 16px;
+    }
 }
 
-@media (max-width: 480px) {
+/* Tablet portrait */
+@media (max-width: 768px) {
+    .hero {
+        padding: 110px 16px 70px;
+        margin-top: 70px;
+    }
+
     .hero-content h1 {
-        font-size: 1.5rem;
+        font-size: 1.8rem;
+        line-height: 1.3;
     }
 
     .hero-content p {
-        font-size: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .cta-button {
+        padding: 12px 32px;
+        font-size: 0.95rem;
     }
 
     .section-title {
         font-size: 2rem;
+    }
+
+    .section-subtitle {
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+    }
+
+    .stat-card {
+        padding: 1.25rem 0.75rem;
+    }
+
+    .stat-card h3 {
+        font-size: 1.8rem;
+    }
+
+    .services-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .service-title {
+        font-size: 1.5rem;
+    }
+
+    .team-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .clients-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .client-item {
+        font-size: 0.9rem;
+        padding: 1rem;
+    }
+
+    .vmg-card h3 {
+        font-size: 1.5rem;
+    }
+
+    .feature-card:hover {
+        transform: none;
+    }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .navbar {
+        padding: 0.75rem 0;
+    }
+
+    .logo img {
+        height: 45px;
+    }
+
+    .nav-menu {
+        top: 70px;
+    }
+
+    .hero {
+        padding: 100px 16px 60px;
+        margin-top: 62px;
+    }
+
+    .hero-content h1 {
+        font-size: 1.5rem;
+        line-height: 1.3;
+    }
+
+    .hero-content p {
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .cta-button {
+        padding: 12px 28px;
+        font-size: 0.9rem;
+    }
+
+    .section {
+        padding: 50px 12px;
+    }
+
+    .vmg-section {
+        padding: 50px 12px;
+    }
+
+    .section-title {
+        font-size: 1.6rem;
+    }
+
+    .section-subtitle {
+        font-size: 0.9rem;
+    }
+
+    .content-text p {
+        font-size: 1rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .stat-card {
+        padding: 1rem 0.5rem;
+    }
+
+    .stat-card h3 {
+        font-size: 1.5rem;
+    }
+
+    .stat-card p {
+        font-size: 0.8rem;
+    }
+
+    .icon-circle {
+        width: 60px;
+        height: 60px;
+    }
+
+    .icon-circle svg {
+        width: 35px;
+        height: 35px;
+    }
+
+    .service-card {
+        padding: 1.5rem;
+    }
+
+    .service-icon {
+        font-size: 2.5rem;
+    }
+
+    .team-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .team-card {
+        padding: 1.5rem;
+    }
+
+    .clients-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .contact-form input,
+    .contact-form textarea {
+        font-size: 16px;
+        padding: 14px;
+    }
+
+    .submit-btn {
+        padding: 14px 2rem;
+        font-size: 1rem;
+        width: 100%;
+    }
+
+    .footer {
+        padding: 2rem 12px 1rem;
+    }
+
+    .footer-content {
+        gap: 1.5rem;
+    }
+
+    .footer-logo {
+        height: 45px;
+    }
+
+    .service-category {
+        margin-bottom: 2.5rem;
+    }
+
+    .service-title {
+        font-size: 1.3rem;
+    }
+
+    .vmg-card {
+        padding: 1.5rem;
+    }
+
+    .vmg-card h3 {
+        font-size: 1.3rem;
+    }
+
+    .feature-card {
+        padding: 1.5rem;
+    }
+
+    .contact-item {
+        padding: 1.25rem;
+    }
+
+    .contact-item a {
+        word-break: break-word;
+    }
+}
+
+/* Disable hover effects on touch devices */
+@media (hover: none) {
+    .stat-card:hover,
+    .vmg-card:hover,
+    .service-card:hover,
+    .team-card:hover,
+    .client-item:hover,
+    .feature-card:hover,
+    .cta-button:hover,
+    .submit-btn:hover {
+        transform: none;
+    }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
