@@ -15,6 +15,8 @@ hamburger.addEventListener('click', (e) => {
     e.stopPropagation();
     navMenu.classList.toggle('active');
     hamburger.classList.toggle('active');
+    const overlay = document.getElementById('navOverlay');
+    if (overlay) overlay.classList.toggle('active');
 });
 
 // Close mobile menu when clicking on a link
@@ -22,6 +24,8 @@ document.querySelectorAll('.nav-menu a').forEach(link => {
     link.addEventListener('click', () => {
         navMenu.classList.remove('active');
         hamburger.classList.remove('active');
+        const overlay = document.getElementById('navOverlay');
+        if (overlay) overlay.classList.remove('active');
     });
 });
 
@@ -30,8 +34,20 @@ document.addEventListener('click', (e) => {
     if (!navMenu.contains(e.target) && !hamburger.contains(e.target)) {
         navMenu.classList.remove('active');
         hamburger.classList.remove('active');
+        const overlay = document.getElementById('navOverlay');
+        if (overlay) overlay.classList.remove('active');
     }
 });
+
+// Nav overlay click to close
+const navOverlay = document.getElementById('navOverlay');
+if (navOverlay) {
+    navOverlay.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+        hamburger.classList.remove('active');
+        navOverlay.classList.remove('active');
+    });
+}
 
 // Smooth scrolling for anchor links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -308,3 +324,85 @@ const statsSection = document.querySelector('.stats-grid');
 if (statsSection) {
     statsObserver.observe(statsSection);
 }
+
+// Hero Particles Animation
+const heroCanvas = document.getElementById('heroParticles');
+if (heroCanvas) {
+    const ctx = heroCanvas.getContext('2d');
+    let particles = [];
+    const PARTICLE_COUNT = 60;
+    const CONNECTION_DIST = 120;
+
+    function resizeCanvas() {
+        const hero = heroCanvas.parentElement;
+        heroCanvas.width = hero.offsetWidth;
+        heroCanvas.height = hero.offsetHeight;
+    }
+
+    function createParticles() {
+        particles = [];
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push({
+                x: Math.random() * heroCanvas.width,
+                y: Math.random() * heroCanvas.height,
+                vx: (Math.random() - 0.5) * 0.6,
+                vy: (Math.random() - 0.5) * 0.6,
+                r: Math.random() * 2 + 1
+            });
+        }
+    }
+
+    function drawParticles() {
+        ctx.clearRect(0, 0, heroCanvas.width, heroCanvas.height);
+
+        for (let i = 0; i < particles.length; i++) {
+            const p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < 0 || p.x > heroCanvas.width) p.vx *= -1;
+            if (p.y < 0 || p.y > heroCanvas.height) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fill();
+
+            for (let j = i + 1; j < particles.length; j++) {
+                const p2 = particles[j];
+                const dx = p.x - p2.x;
+                const dy = p.y - p2.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < CONNECTION_DIST) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - dist / CONNECTION_DIST)})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                }
+            }
+        }
+        requestAnimationFrame(drawParticles);
+    }
+
+    // Respect reduced motion preference
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        resizeCanvas();
+        createParticles();
+        drawParticles();
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            createParticles();
+        });
+    }
+}
+
+// Observe new sections (projects, testimonials)
+document.querySelectorAll('.projects-grid .project-card, .testimonials-grid .testimonial-card').forEach((card, index) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(30px)';
+    card.style.transition = `opacity 0.5s ease ${index * 0.1}s, transform 0.5s ease ${index * 0.1}s`;
+    observer.observe(card);
+});
