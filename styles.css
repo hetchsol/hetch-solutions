@@ -655,6 +655,16 @@ h1, h2, h3, h4, .service-title, .section-title {
     display: inline-block;
 }
 
+.service-category-note {
+    display: block;
+    margin-top: -1.5rem;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    color: var(--text-light, #64748b);
+    font-style: italic;
+    letter-spacing: 0.01em;
+}
+
 .services-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

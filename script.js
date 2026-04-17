@@ -407,7 +407,9 @@ document.querySelectorAll('.projects-grid .project-card, .testimonials-grid .tes
     observer.observe(card);
 });
 
-// Service Detail Modal
+// Service Detail Modal (disabled - uncomment modal HTML to re-enable)
+const modalOverlayCheck = document.getElementById('serviceModal');
+if (modalOverlayCheck) {
 const serviceData = {
     network: {
         title: 'Network Infrastructure',
@@ -641,7 +643,7 @@ const serviceData = {
 };
 
 // Modal logic
-const modalOverlay = document.getElementById('serviceModal');
+const modalOverlay = modalOverlayCheck;
 const modalClose = document.getElementById('modalClose');
 
 function openServiceModal(serviceKey) {
@@ -704,3 +706,4 @@ document.addEventListener('keydown', (e) => {
 document.getElementById('modalCta').addEventListener('click', () => {
     closeServiceModal();
 });
+} // end modalOverlayCheck guard
