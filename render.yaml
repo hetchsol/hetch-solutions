@@ -8,3 +8,9 @@ services:
       - path: /*
         name: Cache-Control
         value: public, max-age=86400
+      - path: /quotes/*
+        name: Cache-Control
+        value: no-cache
+      - path: /quotes/*
+        name: X-Robots-Tag
+        value: noindex, nofollow

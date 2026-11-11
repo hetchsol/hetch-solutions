@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /quotes/
 
 Sitemap: https://hetchsolutions.com/sitemap.xml
