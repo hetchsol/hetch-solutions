@@ -173,6 +173,10 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .btn.wa{background:#25D366;border-color:#25D366;color:#fff}
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
 .login-card{width:100%;max-width:380px}
+.home-link{display:block;text-align:center;font-size:13px;color:var(--muted);text-decoration:none;margin-top:4px}
+.home-link:hover{color:var(--navy);text-decoration:underline}
+.site-link{text-decoration:none;color:var(--ink)}
+.site-link svg{color:inherit;filter:grayscale(1)}
 .login-logo{display:block;height:96px;margin:0 auto 16px;background:#fff;border-radius:10px;padding:6px}
 .idle-warn{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:300;background:#7a5b00;color:#fff;padding:10px 16px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:14px;max-width:92vw;text-align:center}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1b2430;color:#fff;padding:10px 16px;border-radius:10px;z-index:200;box-shadow:0 8px 30px rgba(0,0,0,.3);font-size:13.5px;max-width:90vw}
@@ -317,6 +321,9 @@ button,a,.btn,select,summary{touch-action:manipulation}
   .brand img{height:34px}
   .topbar .spacer{display:none}
   .topbar{justify-content:space-between}
+  .topbar{gap:4px;padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  .topbar .btn{padding:7px 9px}
+  .save-state:empty{display:none}
   .type-card{padding:12px}
   .modal .actions{flex-wrap:wrap}
   .modal .actions .btn{flex:1 1 auto;justify-content:center}
@@ -592,7 +599,7 @@ function save(now) {
   if (CLOUD) { if (now) flushCloud(); else { setSaveState('Saving…'); saveTimer = setTimeout(flushCloud, 700); } return; }
   const doIt = () => {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); storageOk = true; setSaveState('All changes saved'); }
-    catch (e) { storageOk = false; setSaveState('⚠ Could not save. Export a backup now!'); }
+    catch (e) { storageOk = false; setSaveState('⚠︎ Could not save. Export a backup now!'); }
   };
   if (now) doIt(); else { setSaveState('Saving…'); saveTimer = setTimeout(doIt, 350); }
 }
@@ -720,7 +727,8 @@ function render() {
     <div class="topbar">
       <div class="brand" data-act="home"><img src="${LOGO}" alt=""><span class="brand-text">Hetch Quotes</span></div>
       <span class="spacer"></span>
-      <span class="save-state" id="saveState">${storageOk ? '' : '⚠ Not saved'}</span>
+      <span class="save-state" id="saveState">${storageOk ? '' : '⚠︎ Not saved'}</span>
+      <a class="btn site-link" href="https://www.hetchsolutions.com/" title="Go to the Hetch Solutions website" aria-label="Hetch Solutions website"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg><span class="hide-xs">Website</span></a>
       <button class="btn hide-xs" data-act="home">Quotes</button>
       <button class="btn" data-act="settings">Settings</button>
       <button class="btn primary" data-act="new">+ New</button>
@@ -1669,7 +1677,7 @@ async function flushCloud() {
     setSaveState(dirtyQuotes.size || dirtySettings ? 'Saving…' : 'All changes saved');
   } catch (e) {
     console.error(e);
-    setSaveState('⚠ Not saved yet. Retrying…');
+    setSaveState('⚠︎ Not saved yet. Retrying…');
     retryTimer = setTimeout(flushCloud, 8000);
   } finally {
     flushing = false;
@@ -1716,7 +1724,7 @@ function setCloudPfSeq(v) {
   pfSeqTimer = setTimeout(async () => {
     const n = num(v); if (!n) return;
     const { error } = await sb.rpc('hq_set_counter', { counter_name: 'proforma', n });
-    setSaveState(error ? '⚠ Could not update the next proforma number' : 'All changes saved');
+    setSaveState(error ? '⚠︎ Could not update the next proforma number' : 'All changes saved');
   }, 600);
 }
 let seqTimer;
@@ -1725,7 +1733,7 @@ function setCloudSeq(v) {
   seqTimer = setTimeout(async () => {
     const n = num(v); if (!n) return;
     const { error } = await sb.rpc('hq_set_seq', { n });
-    setSaveState(error ? '⚠ Could not update the next quote number' : 'All changes saved');
+    setSaveState(error ? '⚠︎ Could not update the next quote number' : 'All changes saved');
   }, 600);
 }
 
@@ -1741,6 +1749,7 @@ function renderLogin(msg) {
       <div class="hint" id="lgMsg" style="color:var(--danger);min-height:1em">${esc(msg || '')}</div>
       <button class="btn primary" type="submit" id="lgBtn" style="justify-content:center">Sign in</button>
       <a href="#" id="lgForgot" style="font-size:13px;text-align:center">Forgot password?</a>
+      <a href="https://www.hetchsolutions.com/" class="home-link">← Back to hetchsolutions.com</a>
     </form>`);
   $('#lgEmail').focus();
   $('#loginForm').onsubmit = async e => {
@@ -1786,7 +1795,7 @@ async function startSession(session) {
   $('#app').innerHTML = centerCard('<p class="hint" style="text-align:center">Loading quotes…</p>');
   const { data: ok, error } = await sb.rpc('hq_is_staff');
   if (error || !ok) {
-    $('#app').innerHTML = centerCard(`<h2 style="margin:0 0 8px">No access</h2><p class="hint">${esc(userEmail)} is signed in but is not on the staff list for the quote system.</p><button class="btn" data-act="signout">Sign out</button>`);
+    $('#app').innerHTML = centerCard(`<h2 style="margin:0 0 8px">No access</h2><p class="hint">${esc(userEmail)} is signed in but is not on the staff list for the quote system.</p><p><a href="https://www.hetchsolutions.com/" class="home-link">← Back to hetchsolutions.com</a></p><button class="btn" data-act="signout">Sign out</button>`);
     return;
   }
   try { await loadCloud(); }
