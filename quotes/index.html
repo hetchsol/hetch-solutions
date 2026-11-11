@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#1f4e8c">
+<meta name="color-scheme" content="light dark">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hetch Quotes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
 <title>Hetch Quotes</title>
 <meta name="robots" content="noindex, nofollow">
 <script>/* always load at /quotes/ so nothing resolves against the site root */
@@ -30,7 +38,9 @@ if (/\/quotes$/i.test(location.pathname)) location.replace(location.pathname + "
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.3);
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%}
+html,body{margin:0;height:100%;overscroll-behavior-y:none}
+*{-webkit-tap-highlight-color:transparent}
+.btn:active,.seg button:active{filter:brightness(.92)}
 body{background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--navy)}
@@ -206,6 +216,114 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .doc table.notes td{padding:1.2mm 2mm;border-bottom:.2mm solid #d6dbe1;vertical-align:top;font-weight:700;font-size:9.5pt}
 .doc table.notes td.r{text-align:right;white-space:nowrap}
 
+
+/* =========================================================
+   Tablets and phones
+   ========================================================= */
+button,a,.btn,select,summary{touch-action:manipulation}
+.topbar{padding-top:max(10px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+
+/* touch screens: bigger tap targets, no auto-zoom on iPhone */
+@media (pointer:coarse){
+  .btn{min-height:40px}
+  .btn.small{min-height:36px;padding:6px 10px}
+  .btn.icon,.btn.icon.small{min-width:40px;min-height:40px;font-size:15px}
+  select.status{min-height:38px}
+  .seg button{min-height:40px}
+  details.more summary{padding:6px 0}
+}
+@media (pointer:coarse),(max-width:1100px){
+  input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{font-size:16px}
+}
+
+/* tablets (portrait) */
+@media (max-width:1100px){
+  .editor{padding:12px;gap:12px}
+  .ed-preview{padding:10px}
+}
+
+/* phones and small tablets */
+@media (max-width:760px){
+  .topbar{position:static;gap:6px;flex-wrap:wrap}
+  .topbar .btn{padding:7px 10px}
+  .ed-bar{position:sticky;top:0;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:8px;padding:8px 12px}
+  .ed-bar::-webkit-scrollbar{display:none}
+  .ed-bar > *{flex:0 0 auto;order:3}
+  .ed-bar > .back{order:0}
+  .ed-bar > .ed-tabs{order:1}
+  .ed-bar > .qno{order:2;font-size:14px}
+  .ed-bar > .spacer{display:none}
+  .wrap{padding:14px 12px 60px}
+  .card{padding:12px;border-radius:10px}
+  .dash-head{gap:8px}
+  .dash-head h1{flex:1 1 100%;min-width:0;font-size:20px}
+  .dash-head input{max-width:none;flex:1 1 100%;order:5}
+  .modal{padding:16px;max-height:92vh}
+
+  /* quote list -> cards */
+  table.list thead{display:none}
+  table.list,table.list tbody{display:block}
+  table.list tr.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:12px 6px;border-bottom:1px solid var(--line)}
+  table.list tr.row td{display:block;border:0;padding:0;background:none!important}
+  table.list tr.row td:nth-child(1){grid-row:1;grid-column:1}
+  table.list tr.row td:nth-child(2){grid-row:1;grid-column:2;text-align:right}
+  table.list tr.row td:nth-child(3){grid-row:2;grid-column:1;min-width:0}
+  table.list tr.row td:nth-child(5){grid-row:2;grid-column:2;text-align:right;font-weight:600}
+  table.list tr.row td:nth-child(4){grid-row:3;grid-column:1;font-size:12px;color:var(--muted)}
+  table.list tr.row td:nth-child(6){grid-row:3;grid-column:2;text-align:right}
+  table.list tr.row td:nth-child(7){grid-row:4;grid-column:1/-1;text-align:left;margin-top:6px}
+  table.list tr.row td.hide-sm{display:block}
+  table.list tr.row:active td{background:none}
+
+  /* standard item table -> stacked rows */
+  .items-std thead{display:none}
+  .items-std,.items-std tbody{display:block}
+  .items-std tr{display:grid;grid-template-columns:30px repeat(3,minmax(0,1fr));gap:6px 8px;padding:10px 0;border-top:1px solid var(--line)}
+  .items-std td{display:block;border:0;padding:0;width:auto!important}
+  .items-std td.n{grid-row:1;grid-column:1;padding-top:9px}
+  .items-std td:nth-child(2){grid-row:1;grid-column:2/-1}
+  .items-std td.q{grid-row:2;grid-column:2}
+  .items-std td.p{grid-row:2;grid-column:3}
+  .items-std td.x{grid-row:2;grid-column:4;text-align:right;padding-top:0}
+  .items-std td.q::before,.items-std td.p::before,.items-std td.x::before{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .items-std td.q::before{content:"Qty"}
+  .items-std td.p::before{content:"Unit price"}
+  .items-std td.x::before{content:"Extended"}
+  .items-std td.x{padding-top:0;line-height:1.2}
+  .items-std td.a{grid-row:3;grid-column:1/-1;text-align:right}
+
+  /* project items, notes, settings */
+  .pitem .row3{grid-template-columns:1fr 1fr;}
+  .pitem .row3 .ext{grid-column:1/-1;text-align:right;padding-bottom:0}
+  .note-row{grid-template-columns:1fr 120px;}
+  .note-row > :nth-child(2){grid-column:1/-1;grid-row:2}
+  .note-row > :nth-child(4){grid-column:1/-1;text-align:right}
+  .section-head{flex-wrap:wrap}
+  .section-head label{flex:1 1 100%}
+  .totals-box{font-size:15px}
+  .share-row label{min-width:100%}
+  .share-row .btn{flex:1 1 auto;justify-content:center}
+  .btn.icon,.btn.icon.small{min-width:36px;min-height:36px;font-size:15px}
+  .btn.small{min-height:34px}
+}
+
+/* narrow phones */
+@media (max-width:480px){
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .brand-text,.hide-xs{display:none}
+  .brand img{height:34px}
+  .topbar .spacer{display:none}
+  .topbar{justify-content:space-between}
+  .type-card{padding:12px}
+  .modal .actions{flex-wrap:wrap}
+  .modal .actions .btn{flex:1 1 auto;justify-content:center}
+  .toast,.idle-warn{left:12px;right:12px;transform:none;max-width:none}
+  .list-ed .li{flex-wrap:wrap}
+  .list-ed .li textarea{flex:1 1 calc(100% - 30px)}
+  .list-ed .li > span:last-child{margin-left:auto}
+}
+
+.doc{color-scheme:light}
 #printArea{display:none}
 @page{size:A4;margin:10mm 11mm}
 @media print{
@@ -511,7 +629,26 @@ function termText(t, q) { return String(t).replace(/\{validity\}/g, num(q.validi
 
 /* ---------- routing ---------- */
 let view = { name: 'dash', id: null, tab: 'edit' };
-function go(name, id) { view = { name, id: id || null, tab: 'edit' }; render(); window.scrollTo(0, 0); if (name === 'dash') refreshQuotes(); }
+function go(name, id, fromHistory, tab) {
+  view = { name, id: id || null, tab: tab || 'edit' }; render(); window.scrollTo(0, 0);
+  if (!fromHistory) navPush();
+  if (name === 'dash') refreshQuotes();
+}
+/* ---------- Back button / back gesture: step back inside the app instead of leaving it ---------- */
+function navState(extra) { return Object.assign({ hq: 1, name: view.name, id: view.id, tab: view.tab }, extra || {}); }
+function navPush(extra) { if (!state) return; try { history.pushState(navState(extra), ''); } catch (e) { /* ignore */ } }
+function navReplace(extra) { try { history.replaceState(navState(extra), ''); } catch (e) { /* ignore */ } }
+window.addEventListener('popstate', e => {
+  if (!state) return;                                   // signed out: stay on the sign-in screen
+  const s = e.state;
+  if ($('#modal')) { closeModal(true); return; }        // Back closes an open window first
+  if (!s || !s.hq) { go('dash', null, true); return; }
+  if (s.modal) { history.back(); return; }              // stale window entry: skip it
+  if (s.name === view.name && s.id === view.id && s.tab === view.tab) { if (!s.root) history.back(); return; }
+  if (s.name === 'edit' && !state.quotes.some(q => q.id === s.id)) { go('dash', null, true); return; }
+  if (s.name === view.name && s.id === view.id) { view.tab = s.tab || 'edit'; rerenderEditor(); return; }
+  go(s.name, s.id, true, s.tab);
+});
 function current() { return state && state.quotes.find(q => q.id === view.id); }
 
 /* ---------- top-level render ---------- */
@@ -519,10 +656,10 @@ function render() {
   const app = $('#app');
   const top = `
     <div class="topbar">
-      <div class="brand" data-act="home"><img src="${LOGO}" alt="">Hetch Quotes</div>
+      <div class="brand" data-act="home"><img src="${LOGO}" alt=""><span class="brand-text">Hetch Quotes</span></div>
       <span class="spacer"></span>
       <span class="save-state" id="saveState">${storageOk ? '' : '⚠ Not saved'}</span>
-      <button class="btn" data-act="home">Quotes</button>
+      <button class="btn hide-xs" data-act="home">Quotes</button>
       <button class="btn" data-act="settings">Settings</button>
       <button class="btn primary" data-act="new">+ New</button>
       ${CLOUD ? `<span class="hint hide-sm" title="Signed in">${esc(userEmail)}</span><button class="btn" data-act="signout">Sign out</button>` : ''}
@@ -565,7 +702,7 @@ function renderDash() {
       <div class="seg" role="tablist" aria-label="Show">
         ${[['all', 'All'], ['quote', 'Quotes'], ['proforma', 'Proformas']].map(([k, l]) => `<button class="${kindFilter === k ? 'on' : ''}" data-kf="${k}">${l}</button>`).join('')}
       </div>
-      <input type="text" id="search" placeholder="Search number, client…" value="${esc(search)}">
+      <input type="search" id="search" enterkeyhint="search" autocomplete="off" placeholder="Search number, client…" value="${esc(search)}">
       <button class="btn" data-act="export">Backup</button>
       <button class="btn" data-act="import">Restore</button>
     </div>
@@ -578,15 +715,21 @@ function renderDash() {
 
 /* ---------- modals ---------- */
 function openModal(html, onMount) {
-  closeModal();
+  const hadModal = !!$('#modal');
+  closeModal(true);
   const bg = document.createElement('div');
   bg.className = 'modal-bg'; bg.id = 'modal';
   bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
   bg.addEventListener('mousedown', e => { if (e.target === bg) closeModal(); });
   document.body.appendChild(bg);
+  if (!hadModal) navPush({ modal: true });   // so Back closes the window
   if (onMount) onMount(bg);
 }
-function closeModal() { const m = $('#modal'); if (m) m.remove(); }
+function closeModal(fromHistory) {
+  const m = $('#modal'); if (!m) return;
+  m.remove();
+  if (!fromHistory && history.state && history.state.modal) navReplace();
+}
 function confirmBox(title, msg, okText, onOk, danger) {
   openModal(`<h2>${esc(title)}</h2><p>${msg}</p><div class="actions"><button class="btn" data-x>Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-ok>${esc(okText)}</button></div>`,
     m => { $('[data-x]', m).onclick = closeModal; $('[data-ok]', m).onclick = () => { closeModal(); onOk(); }; $('[data-ok]', m).focus(); });
@@ -633,7 +776,9 @@ function inp(path, label, opts = {}) {
   const q = current(); const v = getPath(q, path) ?? '';
   const type = opts.type || 'text';
   const cls = opts.num ? ' class="num"' : '';
-  const attrs = (opts.step ? ` step="${opts.step}"` : '') + (opts.placeholder ? ` placeholder="${esc(opts.placeholder)}"` : '') + (opts.list ? ` list="${opts.list}"` : '');
+  const attrs = (opts.step ? ` step="${opts.step}"` : '') + (opts.placeholder ? ` placeholder="${esc(opts.placeholder)}"` : '') + (opts.list ? ` list="${opts.list}"` : '')
+    + (opts.num ? ' inputmode="decimal"' : '') + (opts.tel ? ' inputmode="tel"' : '') + (opts.type === 'email' ? ' inputmode="email"' : '')
+    + ' autocomplete="off" autocapitalize="sentences"';
   const ctl = opts.area
     ? `<textarea data-bind="${path}"${attrs} rows="${opts.rows || 2}">${esc(v)}</textarea>`
     : `<input type="${type}" data-bind="${path}"${opts.num ? ' data-num="1"' : ''}${cls}${attrs} value="${esc(v)}">`;
@@ -650,7 +795,7 @@ function renderEditor(q) {
 
   return `
   <div class="ed-bar">
-    <button class="btn" data-act="home">← Quotes</button>
+    <button class="btn back" data-act="home" aria-label="Back to the list">← <span class="hide-xs">Quotes</span></button>
     ${isPF(q) ? '<span class="badge proforma">Proforma invoice</span>' : ''}
     <span class="qno" id="qnoLabel">${esc(quoteNo(q))}</span>
     <div class="seg" role="tablist" aria-label="Layout">
@@ -701,7 +846,7 @@ function renderEditor(q) {
         ${inp('client.company', 'Company')}
         ${inp('client.attention', 'Attention')}
         ${inp('client.address', 'Address')}
-        ${inp('client.cell', 'Cell')}
+        ${inp('client.cell', 'Cell', { tel: true })}
         ${inp('client.email', 'Email', { type: 'email' })}
       </div>
     </div>
@@ -711,7 +856,7 @@ function renderEditor(q) {
       <div class="grid g2">
         ${inp('preparedBy.name', 'Name')}
         ${inp('preparedBy.position', 'Position')}
-        ${inp('preparedBy.cell', 'Contact')}
+        ${inp('preparedBy.cell', 'Contact', { tel: true })}
         ${inp('preparedBy.email', 'Email', { type: 'email' })}
       </div>
     </div>
@@ -1298,7 +1443,7 @@ document.addEventListener('click', e => {
     toast(`Switched to ${TYPE_INFO[q.type].name}. Everything you entered is kept.`);
     return;
   }
-  if (d.tab) { view.tab = d.tab; rerenderEditor(); return; }
+  if (d.tab) { if (view.tab !== d.tab) { view.tab = d.tab; rerenderEditor(); navPush(); } return; }
 
   // ----- editor structure -----
   if (q && view.name === 'edit') {
@@ -1587,6 +1732,7 @@ async function startSession(session) {
     return;
   }
   view = { name: 'dash', id: null, tab: 'edit' }; render();
+  navReplace({ root: true });
   startIdleWatch();
   offerLocalMigration();
 }
