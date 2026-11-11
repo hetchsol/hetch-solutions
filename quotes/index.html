@@ -79,6 +79,8 @@ table.list tr.row:hover td{background:var(--panel-2)}
 table.list td.r,table.list th.r{text-align:right}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .badge.standard{background:color-mix(in srgb,var(--teal) 18%,transparent);color:var(--teal-ink)}
+.badge.proforma{background:color-mix(in srgb,#e08a00 20%,transparent);color:#b36b00}
+:root[data-theme="dark"] .badge.proforma{color:#f2b04a}
 .badge.project{background:color-mix(in srgb,var(--navy) 16%,transparent);color:var(--navy)}
 select.status{width:auto;padding:3px 6px;font-size:12px}
 .empty{text-align:center;padding:50px 10px;color:var(--muted)}
@@ -302,7 +304,19 @@ function defaultSettings() {
     peopleV2: true,
     peopleV3: true,
     defaultProfileId: null,
-    numbering: { prefix: 'HSE', pad: 4, nextSeq: 2658 },
+    numbering: { prefix: 'HSE', pad: 4, nextSeq: 2658, pfPrefix: 'HSE-PF', pfNextSeq: 1 },
+    proforma: {
+      validityDays: 14,
+      intro: 'As requested, please find our proforma invoice below:',
+      terms: [
+        'This is a proforma invoice and not a tax invoice. A tax invoice will be issued on payment or delivery.',
+        'Please quote the proforma invoice number as the reference when making payment.',
+        'Prices are valid for {validity} days from the date of this proforma invoice.',
+        'Pricing is subject to stock availability at the time payment is received.',
+        'Goods and services will be supplied on receipt of payment, unless credit terms have been agreed in writing.',
+        'Errors and omissions excepted (E&OE).'
+      ]
+    },
     types: {
       standard: {
         validityDays: 7, currency: 'ZMW',
@@ -345,7 +359,7 @@ let state;
 const CFG = window.HQ_CONFIG || null;
 const CLOUD = !!CFG;
 const SB_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js';
-let sb = null, userEmail = '', recovering = false;
+let sb = null, userEmail = '', recovering = false, pfReady = false;
 const dirtyQuotes = new Set(), deletedQuotes = new Set();
 let dirtySettings = false, flushing = false, flushAgain = false, retryTimer = null, conflictOpen = false;
 function load() {
@@ -378,6 +392,9 @@ function prepareState(s) {
     N.nextSeq = olds.length ? Math.max(...olds) : d.numbering.nextSeq;
   }
   for (const t of ['standard', 'project']) delete s.settings.types[t].nextSeq;
+  if (N.pfPrefix === undefined) N.pfPrefix = d.numbering.pfPrefix;
+  if (N.pfNextSeq === undefined) N.pfNextSeq = d.numbering.pfNextSeq;
+  s.settings.proforma = Object.assign({}, d.proforma, s.settings.proforma || {});
   if (!s.settings.defaultProfileId && s.settings.profiles[0]) s.settings.defaultProfileId = s.settings.profiles[0].id;
   s.quotes = (s.quotes || []).map(normaliseQuote);
   return s;
@@ -407,9 +424,10 @@ function normaliseQuote(q) {
   if (q.discountPct === undefined) q.discountPct = 0;
   if (q.taxPct === undefined) q.taxPct = 0;
   q.status = q.status || 'draft';
+  q.kind = q.kind === 'proforma' ? 'proforma' : 'quote';
   return q;
 }
-function newQuote(type, seq) {
+function newQuote(type, seq, kind) {
   const S = state.settings, T = S.types[type];
   const prof = (userEmail && S.profiles.find(p => p.email && p.email.toLowerCase() === userEmail.toLowerCase()))
     || S.profiles.find(p => p.id === S.defaultProfileId) || S.profiles[0] || {};
@@ -426,8 +444,25 @@ function newQuote(type, seq) {
     additionalNotes: type === 'project' ? clone(T.additionalNotes || []) : [],
     terms: clone(T.terms)
   };
+  if (kind === 'proforma') applyProformaDefaults(q);
   return normaliseQuote(q);
 }
+function applyProformaDefaults(q) {
+  const P = state.settings.proforma;
+  q.kind = 'proforma'; q.status = 'draft';
+  q.intro = P.intro || '';
+  q.validityDays = num(P.validityDays) || 14;
+  q.terms = clone(P.terms || []);
+}
+function takePfSeq() { const N = state.settings.numbering; const n = num(N.pfNextSeq) || 1; N.pfNextSeq = n + 1; return n; }
+const STATUSES = { quote: ['draft', 'sent', 'accepted', 'lost'], proforma: ['draft', 'sent', 'paid', 'cancelled'] };
+function statusOptions(q) {
+  let list = STATUSES[q.kind] || STATUSES.quote;
+  if (!list.includes(q.status)) list = [q.status, ...list];
+  return list.map(s => `<option value="${s}" ${q.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('');
+}
+const isPF = q => q.kind === 'proforma';
+const docName = q => isPF(q) ? 'Proforma invoice' : 'Quotation';
 function takeSeq() { const N = state.settings.numbering; const n = num(N.nextSeq) || 1; N.nextSeq = n + 1; return n; }
 function clientSuffix(name) { return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 3); }
 const CURRENCIES = [
@@ -453,7 +488,8 @@ function quoteNo(q) {
   if (!q.numberAuto) return q.number || '';
   const N = state.settings.numbering;
   const suf = clientSuffix(q.client.company);
-  return N.prefix + pad(q.seq, num(N.pad) || 4) + (suf ? '/' + suf : '');
+  const prefix = isPF(q) ? (N.pfPrefix || 'PF') : N.prefix;
+  return prefix + pad(q.seq, num(N.pad) || 4) + (suf ? '/' + suf : '');
 }
 function allItems(q) { const out = []; q.sections.forEach((s, si) => s.items.forEach((it, ii) => out.push({ it, si, ii, s }))); return out; }
 function lineTotal(it) { return num(it.qty) * num(it.price); }
@@ -481,7 +517,7 @@ function render() {
       <span class="save-state" id="saveState">${storageOk ? '' : '⚠ Not saved'}</span>
       <button class="btn" data-act="home">Quotes</button>
       <button class="btn" data-act="settings">Settings</button>
-      <button class="btn primary" data-act="new">+ New quote</button>
+      <button class="btn primary" data-act="new">+ New</button>
       ${CLOUD ? `<span class="hint hide-sm" title="Signed in">${esc(userEmail)}</span><button class="btn" data-act="signout">Sign out</button>` : ''}
     </div>`;
   if (view.name === 'edit' && current()) app.innerHTML = top + renderEditor(current());
@@ -492,23 +528,24 @@ function render() {
 }
 
 /* ---------- dashboard ---------- */
-let search = '';
+let search = '', kindFilter = 'all';
 function renderDash() {
   const S = state.settings;
   const qs = state.quotes.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0))
-    .filter(q => !search || (quoteNo(q) + ' ' + q.client.company + ' ' + q.client.attention + ' ' + TYPE_INFO[q.type].name).toLowerCase().includes(search.toLowerCase()));
+    .filter(q => kindFilter === 'all' || q.kind === kindFilter)
+    .filter(q => !search || (quoteNo(q) + ' ' + q.client.company + ' ' + q.client.attention + ' ' + TYPE_INFO[q.type].name + ' ' + docName(q) + ' ' + (q.quoteRef || '')).toLowerCase().includes(search.toLowerCase()));
   const backupWarn = !CLOUD && state.quotes.length && (!S.lastBackup || Date.now() - S.lastBackup > 7 * 864e5)
     ? `<div class="notice">Your quotes are stored in this browser only. ${S.lastBackup ? 'Last backup: ' + fmtDate(new Date(S.lastBackup)) + '.' : 'No backup yet.'} <a href="#" data-act="export">Download a backup now</a>.</div>` : '';
   const rows = qs.map(q => {
     const t = totals(q);
     return `<tr class="row" data-open="${q.id}">
       <td><strong>${esc(quoteNo(q))}</strong></td>
-      <td><span class="badge ${q.type}">${TYPE_INFO[q.type].short}</span></td>
+      <td>${isPF(q) ? `<span class="badge proforma">Proforma</span>${q.quoteRef ? `<div class="hint">from ${esc(q.quoteRef)}</div>` : ''}` : `<span class="badge ${q.type}">${TYPE_INFO[q.type].short}</span>`}</td>
       <td>${esc(q.client.company || '-')}${q.client.attention ? `<div class="hint">${esc(q.client.attention)}</div>` : ''}</td>
       <td class="hide-sm">${esc(fmtDate(q.date))}${CLOUD && q._by ? `<div class="hint">edited by ${esc(q._by.split('@')[0])}</div>` : ''}</td>
       <td class="r">${esc(q.currency)} ${money(t.total)}</td>
       <td class="hide-sm"><select class="status" data-status="${q.id}">
-        ${['draft', 'sent', 'accepted', 'lost'].map(s => `<option value="${s}" ${q.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}
+        ${statusOptions(q)}
       </select></td>
       <td class="r" style="white-space:nowrap">
         <button class="btn small" data-dup="${q.id}" title="Duplicate">Duplicate</button>
@@ -518,14 +555,17 @@ function renderDash() {
   return `<div class="wrap">
     <div class="dash-head">
       <h1>Quotes</h1>
+      <div class="seg" role="tablist" aria-label="Show">
+        ${[['all', 'All'], ['quote', 'Quotes'], ['proforma', 'Proformas']].map(([k, l]) => `<button class="${kindFilter === k ? 'on' : ''}" data-kf="${k}">${l}</button>`).join('')}
+      </div>
       <input type="text" id="search" placeholder="Search number, client…" value="${esc(search)}">
       <button class="btn" data-act="export">Backup</button>
       <button class="btn" data-act="import">Restore</button>
     </div>
     ${backupWarn}
     <div class="card" style="padding:6px 10px">
-      ${qs.length ? `<table class="list"><thead><tr><th>Quote No</th><th>Type</th><th>Client</th><th class="hide-sm">Date</th><th class="r">Total</th><th class="hide-sm">Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
-      : `<div class="empty">${state.quotes.length ? 'No quotes match your search.' : 'No quotes yet.<br><br><button class="btn primary" data-act="new">+ Create your first quote</button>'}</div>`}
+      ${qs.length ? `<table class="list"><thead><tr><th>Number</th><th>Type</th><th>Client</th><th class="hide-sm">Date</th><th class="r">Total</th><th class="hide-sm">Status</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+      : `<div class="empty">${state.quotes.length ? 'Nothing matches your search or filter.' : 'No quotes yet.<br><br><button class="btn primary" data-act="new">+ Create your first quote</button>'}</div>`}
     </div></div>`;
 }
 
@@ -551,16 +591,26 @@ function chooseType() {
       <div>${TYPE_INFO[t].blurb}</div>
       <ul>${TYPE_INFO[t].bullets.map(b => `<li>${b}</li>`).join('')}</ul>
       <div class="eg">${TYPE_INFO[t].example}</div></button>`;
-  openModal(`<h2>New quote</h2><div class="hint">Choose a quote type. You can switch at any time without losing anything you've entered.</div>
+  let kind = 'quote';
+  openModal(`<h2>New document</h2>
+    <div class="seg" style="margin:10px 0 4px"><button class="on" data-k="quote">Quotation</button><button data-k="proforma">Proforma invoice</button></div>
+    <div class="hint" id="kindHint">Choose a layout. You can switch at any time without losing anything you've entered.</div>
     <div class="type-cards">${card('standard')}${card('project')}</div>
     <div class="actions"><button class="btn" data-x>Cancel</button></div>`,
     m => {
       $('[data-x]', m).onclick = closeModal;
+      $all('[data-k]', m).forEach(b => b.onclick = () => {
+        kind = b.dataset.k;
+        $all('[data-k]', m).forEach(x => x.classList.toggle('on', x === b));
+        $('#kindHint', m).textContent = kind === 'proforma'
+          ? 'New proforma invoice with its own number (' + (state.settings.numbering.pfPrefix || 'PF') + '…). Tip: to bill an existing quote, open it and click "Create proforma".'
+          : "Choose a layout. You can switch at any time without losing anything you've entered.";
+      });
       $all('[data-type]', m).forEach(b => b.onclick = async () => {
         $all('[data-type]', m).forEach(x => x.disabled = true);
-        let seq; try { seq = await allocSeq(); }
-        catch (e) { toast('Could not get a quote number. Check your internet connection.'); $all('[data-type]', m).forEach(x => x.disabled = false); return; }
-        const q = newQuote(b.dataset.type, seq); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); save(true); closeModal(); go('edit', q.id);
+        let seq; try { seq = await allocSeq(kind); }
+        catch (e) { toast(seqErrorText(kind)); $all('[data-type]', m).forEach(x => x.disabled = false); return; }
+        const q = newQuote(b.dataset.type, seq, kind); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); save(true); closeModal(); go('edit', q.id);
       });
       $('[data-type]', m).focus();
     });
@@ -594,10 +644,11 @@ function renderEditor(q) {
   return `
   <div class="ed-bar">
     <button class="btn" data-act="home">← Quotes</button>
+    ${isPF(q) ? '<span class="badge proforma">Proforma invoice</span>' : ''}
     <span class="qno" id="qnoLabel">${esc(quoteNo(q))}</span>
-    <div class="seg" role="tablist" aria-label="Quote type">
-      <button class="${!isP ? 'on' : ''}" data-switch="standard">Standard Quote</button>
-      <button class="${isP ? 'on' : ''}" data-switch="project">Project Quote</button>
+    <div class="seg" role="tablist" aria-label="Layout">
+      <button class="${!isP ? 'on' : ''}" data-switch="standard">${isPF(q) ? 'Standard' : 'Standard Quote'}</button>
+      <button class="${isP ? 'on' : ''}" data-switch="project">${isPF(q) ? 'Project' : 'Project Quote'}</button>
     </div>
     <div class="seg ed-tabs">
       <button class="${view.tab === 'edit' ? 'on' : ''}" data-tab="edit">Edit</button>
@@ -605,8 +656,11 @@ function renderEditor(q) {
     </div>
     <span class="spacer" style="flex:1"></span>
     <select class="status" data-status="${q.id}" title="Status">
-      ${['draft', 'sent', 'accepted', 'lost'].map(s => `<option value="${s}" ${q.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}
+      ${statusOptions(q)}
     </select>
+    ${isPF(q)
+      ? (q.quoteId && state.quotes.some(x => x.id === q.quoteId) ? `<button class="btn" data-openq="${q.quoteId}" title="Open the quotation this proforma was made from">Quote ${esc(q.quoteRef || '')}</button>` : '')
+      : `<button class="btn" data-mkpf="${q.id}" title="Make a proforma invoice from this quote">Create proforma</button>`}
     <button class="btn" data-dup="${q.id}">Duplicate</button>
     <button class="btn" data-act="print">Print</button>
     <button class="btn teal" data-act="share">Share / PDF</button>
@@ -614,21 +668,23 @@ function renderEditor(q) {
 
   <div class="editor" data-tab="${view.tab}">
    <div class="ed-form">
+    ${!isPF(q) && state.quotes.some(x => x.quoteId === q.id) ? `<div class="notice">Proformas from this quote: ${state.quotes.filter(x => x.quoteId === q.id).map(x => `<a href="#" data-openq="${x.id}">${esc(quoteNo(x))}</a>`).join(', ')}</div>` : ''}
     ${otherHidden ? `<div class="notice">This quote also has Project Quote details (${[multiGroups && q.sections.length + ' groups', hasCodes && 'part codes', q.notes.length && 'important notes', q.additionalNotes.length && 'additional notes'].filter(Boolean).join(', ')}). They are kept and will come back if you switch to Project Quote.</div>` : ''}
 
     <div class="card"><h3>Quote details</h3>
       <div class="grid g2">
         ${inp('date', 'Document date', { type: 'date' })}
-        <label class="f">Quote no.
+        <label class="f">${isPF(q) ? 'Proforma no.' : 'Quote no.'}
           <div style="display:flex;gap:6px">
             ${q.numberAuto
               ? `<input type="number" data-bind="seq" data-num="1" value="${esc(q.seq)}" title="Sequence number" style="width:110px"><input type="text" value="${esc(quoteNo(q))}" disabled id="qnoAuto">`
               : `<input type="text" data-bind="number" value="${esc(q.number)}">`}
           </div>
-          <span><label style="font-size:12px"><input type="checkbox" data-numauto ${q.numberAuto ? 'checked' : ''}> Auto (${esc(S.numbering.prefix)} + number + client initials)</label></span>
+          <span><label style="font-size:12px"><input type="checkbox" data-numauto ${q.numberAuto ? 'checked' : ''}> Auto (${esc(isPF(q) ? (S.numbering.pfPrefix || 'PF') : S.numbering.prefix)} + number + client initials)</label></span>
         </label>
         <label class="f">Base currency${currencySelect(q.currency, 'data-bind="currency"')}</label>
         ${inp('validityDays', 'Valid for (days)', { type: 'number', num: true })}
+        ${isPF(q) ? inp('quoteRef', 'Quotation reference (optional)', { placeholder: 'e.g. HSE2658/dal' }) : ''}
       </div>
       <div style="margin-top:10px">${inp('intro', 'Opening line', { area: true, rows: 2 })}</div>
     </div>
@@ -666,7 +722,7 @@ function renderEditor(q) {
     ${isP ? renderProjectNotes(q) : ''}
 
     <div class="card"><h3><span class="grow">Terms and conditions</span>
-      <button class="btn small" data-resetterms>Reset to ${TYPE_INFO[q.type].short} defaults</button></h3>
+      <button class="btn small" data-resetterms>Reset to ${isPF(q) ? 'proforma' : TYPE_INFO[q.type].short} defaults</button></h3>
       <div class="hint" style="margin-bottom:8px">Write <code>{validity}</code> to insert the number of days this quote is valid for.</div>
       ${listEditor('terms', q.terms)}
     </div>
@@ -768,7 +824,7 @@ function listEditor(key, arr, base) {
 function renderDoc(q) {
   const S = state.settings, C = S.company, B = S.bank, cur = esc(q.currency || '');
   const t = totals(q);
-  const isP = q.type === 'project';
+  const isP = q.type === 'project', pf = isPF(q);
   const validTo = addDays(q.date, q.validityDays);
   const line = (k, v) => v ? `<div>${k ? `<strong>${esc(k)}:</strong> ` : ''}${esc(v)}</div>` : '';
 
@@ -780,15 +836,16 @@ function renderDoc(q) {
         ${C.address1 ? `<div>${esc(C.address1)}</div>` : ''}${C.address2 ? `<div>${esc(C.address2)}</div>` : ''}
       </div>
     </div>
-    <div class="d-titlerow"><div></div><div class="d-title">QUOTATION</div><div class="d-tpin">${C.tpin ? 'TPIN: ' + esc(C.tpin) : ''}</div></div>
+    <div class="d-titlerow"><div></div><div class="d-title">${pf ? 'PROFORMA INVOICE' : 'QUOTATION'}</div><div class="d-tpin">${C.tpin ? 'TPIN: ' + esc(C.tpin) : ''}</div></div>
     <div class="bar two"><span>Bill To:</span><span>Prepared By:</span></div>
     <div class="parties">
       <div>${line('Company', q.client.company)}${line('Attention', q.client.attention)}${line('Address', q.client.address)}${line('Cell', q.client.cell)}${line('Email', q.client.email)}</div>
       <div>${line('Name', q.preparedBy.name)}${line('Position', q.preparedBy.position)}${line('Contact', q.preparedBy.cell)}${line('Email', q.preparedBy.email)}</div>
     </div>
     <div class="bar thin"></div>
-    <table class="meta" style="margin-top:2mm"><tr><th>Document Date</th><th>Quote No:</th><th>Base Currency</th><th>Quote Validity</th></tr>
+    <table class="meta" style="margin-top:2mm"><tr><th>Document Date</th><th>${pf ? 'Proforma No:' : 'Quote No:'}</th><th>Base Currency</th><th>${pf ? 'Valid Until' : 'Quote Validity'}</th></tr>
       <tr><td>${esc(fmtDate(q.date))}</td><td>${esc(quoteNo(q))}</td><td>${cur}</td><td>${esc(validTo ? fmtDate(validTo) : '')}</td></tr></table>
+    ${pf && q.quoteRef ? `<div class="intro" style="margin-bottom:0"><strong>Reference:</strong> Quotation ${esc(q.quoteRef)}</div>` : ''}
     ${q.intro ? `<div class="intro">${esc(q.intro)}</div>` : ''}`;
 
   const totalsTbl = `<table class="totals">
@@ -901,12 +958,29 @@ function moveItem(q, id, dir) {
 }
 async function duplicateQuote(id) {
   const src = state.quotes.find(q => q.id === id); if (!src) return;
-  let seq; try { seq = await allocSeq(); } catch (e) { toast('Could not get a quote number. Check your internet connection.'); return; }
-  const q = stripPrivate(src);
+  let seq; try { seq = await allocSeq(src.kind); } catch (e) { toast(seqErrorText(src.kind)); return; }
+  const q = stripPrivate(src); delete q.importedFrom;
   q.id = uid(); q.created = q.updated = Date.now(); q.status = 'draft'; q.date = todayISO();
   q.seq = seq; q.numberAuto = true; q.number = '';
   q.sections.forEach(s => { s.id = uid(); s.items.forEach(i => i.id = uid()); });
   normaliseQuote(q); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); save(true); go('edit', q.id); toast('Duplicated as ' + quoteNo(q));
+}
+async function createProforma(id) {
+  const src = state.quotes.find(q => q.id === id); if (!src) return;
+  let seq; try { seq = await allocSeq('proforma'); } catch (e) { toast(seqErrorText('proforma')); return; }
+  const p = stripPrivate(src);
+  delete p.importedFrom;
+  p.id = uid(); p.created = p.updated = Date.now(); p.date = todayISO();
+  p.seq = seq; p.numberAuto = true; p.number = '';
+  p.quoteId = src.id; p.quoteRef = quoteNo(src);
+  applyProformaDefaults(p);
+  p.sections.forEach(s => { s.id = uid(); s.items.forEach(i => i.id = uid()); });
+  normaliseQuote(p); state.quotes.push(p); if (CLOUD) dirtyQuotes.add(p.id); save(true); go('edit', p.id);
+  toast('Proforma ' + quoteNo(p) + ' created from quote ' + p.quoteRef);
+}
+function seqErrorText(kind) {
+  if (kind === 'proforma' && CLOUD && !pfReady) return 'Proforma numbering is not set up in the database yet. Run supabase-proforma.sql in Supabase (SQL Editor), then reload.';
+  return 'Could not get a ' + (kind === 'proforma' ? 'proforma' : 'quote') + ' number. Check your internet connection.';
 }
 function printQuote() {
   const q = current(); if (!q) return;
@@ -961,7 +1035,8 @@ function shareMessage(q) {
   const t = totals(q), v = addDays(q.date, q.validityDays), P = q.preparedBy;
   const lines = [
     `Dear ${q.client.attention || 'Sir/Madam'},`, '',
-    `Please find attached our quotation ${quoteNo(q)}${q.client.company ? ' for ' + q.client.company : ''}.`, '',
+    `Please find attached our ${isPF(q) ? 'proforma invoice' : 'quotation'} ${quoteNo(q)}${q.client.company ? ' for ' + q.client.company : ''}.`, '',
+    isPF(q) ? `Please use ${quoteNo(q)} as the reference when making payment.` : null, isPF(q) ? '' : null,
     `Total: ${q.currency} ${money(t.total)}`,
     v ? `Valid until: ${fmtDate(v)}` : null, '',
     `Please let us know if you have any questions${P.cell ? ' (' + P.cell + ')' : ''}.`, '',
@@ -1005,7 +1080,7 @@ function openShare() {
       </div>
       <div class="share-row" style="margin-top:10px">
         <label class="f">Email to<input type="email" id="shEmail" value="${esc(q.client.email)}" placeholder="client@company.com"></label>
-        <label class="f">Subject<input type="text" id="shSubj" value="${esc('Quotation ' + quoteNo(q) + ' - ' + state.settings.company.name)}"></label>
+        <label class="f">Subject<input type="text" id="shSubj" value="${esc(docName(q) + ' ' + quoteNo(q) + ' - ' + state.settings.company.name)}"></label>
         <button class="btn primary" id="shMail">Open email</button>
       </div>
     </div>
@@ -1032,7 +1107,7 @@ function openShare() {
     const nb = $('#shNative', m);
     if (nb) nb.onclick = e => withPdf(e.currentTarget, async blob => {
       const file = new File([blob], pdfFileName(q), { type: 'application/pdf' });
-      await navigator.share({ files: [file], title: 'Quotation ' + quoteNo(q), text: $('#shMsg', m).value });
+      await navigator.share({ files: [file], title: docName(q) + ' ' + quoteNo(q), text: $('#shMsg', m).value });
       markSent(q);
     });
     $('#shWa', m).onclick = () => {
@@ -1089,8 +1164,17 @@ function renderSettings() {
 
     <div class="card"><h3>Quote numbering</h3><div class="grid g2">
       ${sInp('numbering.prefix', 'Prefix')}
-      ${sInp('numbering.nextSeq', 'Next quote number (shared by both quote types)', { type: 'number', num: true })}</div>
-      <div class="hint" style="margin-top:6px">Example: ${esc(S.numbering.prefix)}${pad(num(S.numbering.nextSeq), 4)}/dal: prefix, number, then the first 3 letters of the client's company.</div></div>
+      ${sInp('numbering.nextSeq', 'Next quote number (shared by both quote types)', { type: 'number', num: true })}
+      ${sInp('numbering.pfPrefix', 'Proforma prefix')}
+      ${sInp('numbering.pfNextSeq', 'Next proforma number', { type: 'number', num: true })}</div>
+      ${CLOUD && !pfReady ? '<div class="notice" style="margin-top:8px">Proforma numbering needs a one-time database update: run <strong>supabase-proforma.sql</strong> in Supabase (SQL Editor), then reload this page.</div>' : ''}
+      <div class="hint" style="margin-top:6px">Examples: quote ${esc(S.numbering.prefix)}${pad(num(S.numbering.nextSeq), 4)}/dal, proforma ${esc(S.numbering.pfPrefix || 'PF')}${pad(num(S.numbering.pfNextSeq) || 1, 4)}/dal: prefix, number, then the first 3 letters of the client's company.</div></div>
+
+    <div class="card"><h3><span class="badge proforma">Proforma</span> Proforma invoice defaults</h3>
+      <div class="grid g2">${sInp('proforma.validityDays', 'Valid for (days)', { type: 'number', num: true })}</div>
+      <div style="margin-top:10px">${sInp('proforma.intro', 'Opening line', { area: true, rows: 2 })}</div>
+      <div style="margin-top:14px"><div class="hint" style="margin-bottom:6px"><strong>Terms and conditions</strong> (use {validity} for the validity days)</div>${sList('proforma.terms', S.proforma.terms || [])}</div>
+    </div>
 
     ${['standard', 'project'].map(t => `<div class="card"><h3><span class="badge ${t}">${TYPE_INFO[t].short}</span> ${TYPE_INFO[t].name} defaults</h3>
       <div class="grid g2"><label class="f">Default currency${currencySelect(S.types[t].currency, `data-sbind="types.${t}.currency"`)}</label>${sInp(`types.${t}.validityDays`, 'Valid for (days)', { type: 'number', num: true })}</div>
@@ -1125,21 +1209,32 @@ function importBackup() {
     const r = new FileReader();
     r.onload = () => {
       let data; try { data = JSON.parse(r.result); } catch (e) { toast('That file is not a valid backup.'); return; }
-      if (!data || !data.settings || !Array.isArray(data.quotes)) { toast('That file is not a Hetch Quotes backup.'); return; }
-      if (CLOUD) {
-        confirmBox('Import backup?', `This adds the ${data.quotes.length} quotes in the backup to the online quotes (a quote that already exists online is replaced by the backup's copy) and replaces the settings.`, 'Import', () => {
-          const B = prepareState({ settings: data.settings, quotes: data.quotes });
-          const keepSeq = num(state.settings.numbering.nextSeq);
-          state.settings = B.settings; dirtySettings = true;
-          B.quotes.forEach(q => {
-            const i = state.quotes.findIndex(x => x.id === q.id);
-            if (i >= 0) { q._version = state.quotes[i]._version; state.quotes[i] = q; } else { delete q._version; state.quotes.push(q); }
-            dirtyQuotes.add(q.id);
-          });
-          const next = Math.max(keepSeq, num(B.settings.numbering.nextSeq), ...B.quotes.map(q => num(q.seq) + 1));
-          state.settings.numbering.nextSeq = next; setCloudSeq(next);
-          save(true); go('dash'); toast(`Imported ${B.quotes.length} quotes`);
+      if (!data || !Array.isArray(data.quotes)) { toast('That file is not a Hetch Quotes backup.'); return; }
+      // a file with quotes but no settings (e.g. converted old quotes) only adds quotes; settings stay as they are
+      const quotesOnly = !data.settings;
+      const n = data.quotes.length;
+      const mergeQuotes = () => {
+        const B = prepareState({ settings: quotesOnly ? clone(state.settings) : data.settings, quotes: data.quotes });
+        const keepSeq = num(state.settings.numbering.nextSeq);
+        if (!quotesOnly) { state.settings = B.settings; if (CLOUD) dirtySettings = true; }
+        B.quotes.forEach(q => {
+          const i = state.quotes.findIndex(x => x.id === q.id);
+          if (i >= 0) { q._version = state.quotes[i]._version; state.quotes[i] = q; } else { delete q._version; state.quotes.push(q); }
+          if (CLOUD) dirtyQuotes.add(q.id);
         });
+        const keepPf = num(state.settings.numbering.pfNextSeq);
+        const next = Math.max(keepSeq, quotesOnly ? 0 : num(B.settings.numbering.nextSeq), ...B.quotes.map(q => q.numberAuto && !isPF(q) ? num(q.seq) + 1 : 0));
+        const nextPf = Math.max(keepPf, quotesOnly ? 0 : num(B.settings.numbering.pfNextSeq), ...B.quotes.map(q => q.numberAuto && isPF(q) ? num(q.seq) + 1 : 0));
+        state.settings.numbering.nextSeq = next; state.settings.numbering.pfNextSeq = nextPf || '';
+        if (CLOUD) { setCloudSeq(next); if (pfReady && nextPf > keepPf) setCloudPfSeq(nextPf); } else saveSettings();
+        save(true); go('dash'); toast(`Imported ${B.quotes.length} quotes`);
+      };
+      if (quotesOnly) {
+        confirmBox('Import quotes?', `This adds ${n} quotes to ${CLOUD ? 'the online quotes' : 'this app'}. Importing the same file again replaces those quotes instead of duplicating them. Your settings are not changed.`, 'Import', mergeQuotes);
+        return;
+      }
+      if (CLOUD) {
+        confirmBox('Import backup?', `This adds the ${n} quotes in the backup to the online quotes (a quote that already exists online is replaced by the backup's copy) and replaces the settings.`, 'Import', mergeQuotes);
         return;
       }
       confirmBox('Restore backup?', `This replaces everything currently in the app with the backup (${data.quotes.length} quotes). Download a backup of the current data first if you might need it.`, 'Replace with backup', () => {
@@ -1175,6 +1270,9 @@ document.addEventListener('click', e => {
   if (!state) return;
   if (d.open !== undefined && !e.target.closest('select,button')) { go('edit', d.open); return; }
   if (d.dup) { duplicateQuote(d.dup); return; }
+  if (d.mkpf) { createProforma(d.mkpf); return; }
+  if (d.openq) { e.preventDefault(); go('edit', d.openq); return; }
+  if (d.kf) { kindFilter = d.kf; render(); return; }
   if (d.del) {
     const dq = state.quotes.find(x => x.id === d.del);
     confirmBox('Delete quote?', `Delete <strong>${esc(quoteNo(dq))}</strong>${dq.client.company ? ' for ' + esc(dq.client.company) : ''}? This cannot be undone.`, 'Delete', () => {
@@ -1215,7 +1313,7 @@ document.addEventListener('click', e => {
     if (d.lmv) { const arr = getPath(q, d.lmv), i = +d.i, j = i + +d.dir; if (j >= 0 && j < arr.length) { [arr[i], arr[j]] = [arr[j], arr[i]]; touch(q); rerenderEditor(); } return; }
     if (d.loaddef) { q[d.loaddef] = clone(state.settings.types.project[d.loaddef] || []); touch(q); rerenderEditor(); return; }
     if (d.resetterms !== undefined) {
-      confirmBox('Reset terms?', `Replace this quote's terms with the default ${TYPE_INFO[q.type].name} terms?`, 'Reset', () => { q.terms = clone(state.settings.types[q.type].terms); touch(q); rerenderEditor(); });
+      confirmBox('Reset terms?', `Replace these terms with the default ${isPF(q) ? 'proforma invoice' : TYPE_INFO[q.type].name} terms?`, 'Reset', () => { q.terms = clone(isPF(q) ? state.settings.proforma.terms : state.settings.types[q.type].terms); touch(q); rerenderEditor(); });
       return;
     }
   }
@@ -1249,7 +1347,9 @@ document.addEventListener('input', e => {
   if (el.dataset.sbind) {
     let v = el.value; if (el.dataset.num) v = v === '' ? '' : num(v);
     setPath(state.settings, el.dataset.sbind, v);
-    if (CLOUD && el.dataset.sbind === 'numbering.nextSeq') setCloudSeq(v); else saveSettings();
+    if (CLOUD && el.dataset.sbind === 'numbering.nextSeq') setCloudSeq(v);
+    else if (CLOUD && el.dataset.sbind === 'numbering.pfNextSeq') setCloudPfSeq(v);
+    else saveSettings();
   }
 });
 document.addEventListener('change', e => {
@@ -1295,6 +1395,10 @@ async function loadCloud() {
   state = prepareState({ settings: st.data ? st.data.data : null, quotes: [] });
   state.quotes = qs.data.map(rowToQuote);
   state.settings.numbering.nextSeq = seq.data;
+  // proforma counter (needs supabase-proforma.sql); the app still works without it
+  const pfc = await sb.rpc('hq_peek_counter', { counter_name: 'proforma' });
+  pfReady = !pfc.error;
+  state.settings.numbering.pfNextSeq = pfc.error ? '' : pfc.data;
   if (!st.data) { dirtySettings = true; flushCloud(); }   // first run: store default settings
 }
 let lastRefresh = 0;
@@ -1373,12 +1477,28 @@ function showConflict(q) {
     };
   });
 }
-async function allocSeq() {
+async function allocSeq(kind) {
+  if (kind === 'proforma') {
+    if (!CLOUD) return takePfSeq();
+    const { data, error } = await sb.rpc('hq_take_counter', { counter_name: 'proforma' });
+    if (error) { pfReady = false; throw error; }
+    pfReady = true; state.settings.numbering.pfNextSeq = data + 1;
+    return data;
+  }
   if (!CLOUD) return takeSeq();
   const { data, error } = await sb.rpc('hq_take_seq');
   if (error) throw error;
   state.settings.numbering.nextSeq = data + 1;
   return data;
+}
+let pfSeqTimer;
+function setCloudPfSeq(v) {
+  clearTimeout(pfSeqTimer);
+  pfSeqTimer = setTimeout(async () => {
+    const n = num(v); if (!n) return;
+    const { error } = await sb.rpc('hq_set_counter', { counter_name: 'proforma', n });
+    setSaveState(error ? '⚠ Could not update the next proforma number' : 'All changes saved');
+  }, 600);
 }
 let seqTimer;
 function setCloudSeq(v) {
