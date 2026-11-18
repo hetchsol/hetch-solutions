@@ -33,7 +33,8 @@ if (/\/quotes$/i.test(location.pathname)) location.replace(location.pathname + "
     --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.3);
   }
 }
-:root[data-theme="dark"]{
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark;
   --secbar:#2a4568; --bg:#11161d; --panel:#1a212b; --panel-2:#202834; --ink:#e6ebf1; --muted:#9aa6b4;
   --line:#2d3746; --warn-bg:#3a3214; --warn-ink:#f0d68a; --navy:#6f9fe0; --teal-ink:#4fd1c1;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.3);
@@ -66,7 +67,7 @@ a{color:var(--navy)}
 .btn.icon{padding:3px 7px;min-width:28px;justify-content:center}
 .btn:disabled{opacity:.4;cursor:default}
 label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
-input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{
+input[type=text],input[type=search],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{
   width:100%;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:6px 8px;color:var(--ink);font-size:14px}
 textarea{resize:vertical;min-height:60px}
 input:focus,select:focus,textarea:focus{outline:2px solid color-mix(in srgb,var(--focus) 45%,transparent);border-color:var(--focus)}
@@ -183,6 +184,10 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .cat-t{font-weight:600}
 .cat-m{font-size:12px;color:var(--teal-ink)}
 .cat-d{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.cp-tabs{margin-bottom:12px}
+.cp-list{max-height:none;border:0;border-radius:0}
+.cp-bar{position:sticky;bottom:0;z-index:15;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:12px;box-shadow:0 -6px 20px rgba(0,0,0,.12);padding-bottom:max(10px,env(safe-area-inset-bottom))}
+.cp-bar .btn{min-height:40px}
 .pitem.flash{box-shadow:0 0 0 2px var(--teal);transition:box-shadow .3s}
 .section-head{display:flex;gap:6px;align-items:end;margin-bottom:8px}
 .section-head label{flex:1}
@@ -279,7 +284,7 @@ button,a,.btn,select,summary{touch-action:manipulation}
   details.more summary{padding:6px 0}
 }
 @media (pointer:coarse),(max-width:1100px){
-  input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{font-size:16px}
+  input[type=text],input[type=search],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{font-size:16px}
 }
 
 /* tablets (portrait) */
@@ -880,12 +885,14 @@ function render() {
       ${themeSwitch()}
       <a class="btn site-link" href="https://www.hetchsolutions.com/" title="Go to the Hetch Solutions website" aria-label="Hetch Solutions website"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg><span class="hide-xs">Website</span></a>
       <button class="btn hide-xs" data-act="home">Quotes</button>
+      <button class="btn icon-text" data-act="catalog" aria-label="Catalogue" title="Item catalogue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8M8 11h6"/></svg><span class="hide-xs">Catalogue</span></button>
       <button class="btn icon-text" data-act="settings" aria-label="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="hide-xs">Settings</span></button>
       <button class="btn primary" data-act="new">+ New</button>
       ${CLOUD ? `<span class="hint hide-sm" title="Signed in">${esc(userEmail)}</span><button class="btn" data-act="signout" title="Signed in as ${esc(userEmail)}">Sign out</button>` : ''}
     </div>`;
   if (view.name === 'edit' && current()) app.innerHTML = top + renderEditor(current());
   else if (view.name === 'settings') app.innerHTML = top + renderSettings();
+  else if (view.name === 'catalog') { app.innerHTML = top + renderCatalogPage(); loadCatalog().then(() => { if (view.name === 'catalog') cpDraw(); }); }
   else { view.name = 'dash'; app.innerHTML = top + renderDash(); }
   if (view.name === 'edit') { refreshPreview(); fitPreview(); }
   syncTitle();
@@ -953,7 +960,7 @@ function confirmBox(title, msg, okText, onOk, danger) {
   openModal(`<h2>${esc(title)}</h2><p>${msg}</p><div class="actions"><button class="btn" data-x>Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-ok>${esc(okText)}</button></div>`,
     m => { $('[data-x]', m).onclick = closeModal; $('[data-ok]', m).onclick = () => { closeModal(); onOk(); }; $('[data-ok]', m).focus(); });
 }
-function chooseType() {
+function chooseType(then) {
   const card = t => `<button class="type-card" data-type="${t}">
       <span class="badge ${t}">${TYPE_INFO[t].short}</span>
       <h4 style="margin-top:8px">${TYPE_INFO[t].name}</h4>
@@ -979,7 +986,7 @@ function chooseType() {
         $all('[data-type]', m).forEach(x => x.disabled = true);
         let seq; try { seq = await allocSeq(kind); }
         catch (e) { toast(seqErrorText(kind)); $all('[data-type]', m).forEach(x => x.disabled = false); return; }
-        const q = newQuote(b.dataset.type, seq, kind); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); save(true); closeModal(); go('edit', q.id);
+        const q = newQuote(b.dataset.type, seq, kind); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); if (then) then(q); save(true); closeModal(); go('edit', q.id);
       });
       $('[data-type]', m).focus();
     });
@@ -1594,13 +1601,8 @@ function renderSettings() {
         <div style="margin-top:14px"><div class="hint" style="margin-bottom:6px"><strong>Additional notes</strong></div>${sList('types.project.additionalNotes', S.types.project.additionalNotes || [])}</div>` : ''}
       </div>`).join('')}
 
-    <div class="card"><h3><span class="grow">My catalogue (saved items)</span><button class="btn small" data-addcat>+ Add item</button></h3>
-      <p class="hint" style="margin-top:0">Items you save with the bookmark button on a quote line appear first when you type an item title, with their price. Both staff share this list. The built-in list of ${CATALOG.length || 'about 850'} standard IT items and everything you have quoted before are searched too.</p>
-      ${(S.catalog || []).length ? (S.catalog || []).map((x, i) => `<div class="section"><div class="sec-body"><div class="grid g2">${sInp(`catalog.${i}.t`, 'Title')}${sInp(`catalog.${i}.code`, 'Part no. (optional)')}</div>
-        <div style="margin-top:8px">${sInp(`catalog.${i}.d`, 'Detailed description', { area: true, rows: 2 })}</div>
-        <div class="grid g3" style="margin-top:8px;align-items:end">${sInp(`catalog.${i}.price`, 'Price', { type: 'number', num: true })}<label class="f">Currency${currencySelect(x.cur || S.types.standard.currency, `data-sbind="catalog.${i}.cur"`)}</label>
-          <div style="text-align:right"><button class="btn small danger" data-slrm="catalog" data-i="${i}">Remove</button></div></div></div></div>`).join('') : '<div class="hint">No saved items yet.</div>'}
-    </div>
+    <div class="card"><h3><span class="grow">Item catalogue</span><button class="btn small" data-act="catalog">Open catalogue</button></h3>
+      <p class="hint" style="margin:0">Browse the standard items, add them to quotes and manage your saved items on the <strong>Catalogue</strong> page (button at the top).</p></div>
 
     <div class="card"><h3>Backup &amp; restore</h3>
       <p class="hint" style="margin-top:0">${CLOUD ? 'Quotes are saved online and shared by everyone who signs in. Download a backup now and then for safekeeping. Restoring adds the backup\'s quotes to the online ones.' : 'Quotes are saved in this browser on this computer. Download a backup regularly, and use it to move your quotes to another PC.'}</p>
@@ -1757,14 +1759,18 @@ async function openCatalog(secId) {
     qEl.addEventListener('input', draw); cEl.addEventListener('change', draw);
     $('[data-x]', m).onclick = closeModal;
     addBtn.onclick = () => {
-      // drop empty rows at the end of the group first, then add the picked items in the order they were ticked
-      while (sec.items.length && !hasContent(sec.items[sec.items.length - 1]) && !sec.items[sec.items.length - 1].code) sec.items.pop();
-      picked.forEach(x => { const it = blankItem(); fillFromCatalog(q, it, x); sec.items.push(it); });
-      const n = picked.size; closeModal(); touch(q); rerenderEditor();
+      addItemsTo(q, sec, [...picked.values()]);
+      const n = picked.size; closeModal(); rerenderEditor();
       toast(`Added ${n} item${n === 1 ? '' : 's'}${q.type === 'project' ? ' to ' + groupName(sec, si) : ''}. Fill in quantities and prices.`);
     };
     draw(); count(); qEl.focus();
   });
+}
+function addItemsTo(q, sec, items) {
+  // drop empty rows at the end of the group first, then add the items in the order they were picked
+  while (sec.items.length && !hasContent(sec.items[sec.items.length - 1]) && !sec.items[sec.items.length - 1].code) sec.items.pop();
+  items.forEach(x => { const it = blankItem(); fillFromCatalog(q, it, x); sec.items.push(it); });
+  touch(q);
 }
 function saveToCatalog(id) {
   const q = current(), loc = q && findItem(q, id); if (!loc) return;
@@ -1778,6 +1784,105 @@ function saveToCatalog(id) {
   toast(ex ? `Updated "${t}" in your catalogue` : `Saved "${t}" to your catalogue`);
 }
 
+/* ---------- catalogue page (top bar > Catalogue) ---------- */
+let cpTab = 'browse';
+const cpPicked = new Map();
+let cpShown = [];
+function renderCatalogPage() {
+  const S = state.settings, nSaved = (S.catalog || []).filter(x => x && x.t).length;
+  return `<div class="wrap cp-wrap">
+    <div class="dash-head"><h1>Catalogue</h1><span class="hint">Standard IT items, your saved items and everything quoted before. Tick items, then add them to a quote.</span></div>
+    <div class="seg cp-tabs" role="tablist"><button class="${cpTab === 'browse' ? 'on' : ''}" data-cptab="browse">All items</button><button class="${cpTab === 'mine' ? 'on' : ''}" data-cptab="mine">My saved items (${nSaved})</button></div>
+    ${cpTab === 'browse' ? `<div class="card">
+      <div class="cat-bar">
+        <input type="search" id="cpQ" placeholder="Search e.g. 6U cabinet, cat6 patch cord, IP phone, leaky feeder" autocomplete="off">
+        <select id="cpC"><option value="">All categories</option><option value="mine">My saved items</option><option value="past">Previously quoted</option></select>
+      </div>
+      <div class="cat-list cp-list" id="cpList"><div class="hint" style="padding:12px">Loading the catalogue…</div></div>
+    </div>
+    <div class="cp-bar">
+      <span id="cpCount" class="hint">Nothing selected</span>
+      <span style="display:flex;gap:8px"><button class="btn" id="cpClear">Clear</button><button class="btn primary" id="cpAdd" disabled>Add to a quote…</button></span>
+    </div>` : `    <div class="card"><h3><span class="grow">My saved items</span><button class="btn small" data-addcat>+ Add item</button></h3>
+      <p class="hint" style="margin-top:0">Items you save with the bookmark button on a quote line appear first when you type an item title, with their price. Both staff share this list. The built-in list of ${CATALOG.length || 'about 850'} standard IT items and everything you have quoted before are searched too.</p>
+      ${(S.catalog || []).length ? (S.catalog || []).map((x, i) => `<div class="section"><div class="sec-body"><div class="grid g2">${sInp(`catalog.${i}.t`, 'Title')}${sInp(`catalog.${i}.code`, 'Part no. (optional)')}</div>
+        <div style="margin-top:8px">${sInp(`catalog.${i}.d`, 'Detailed description', { area: true, rows: 2 })}</div>
+        <div class="grid g3" style="margin-top:8px;align-items:end">${sInp(`catalog.${i}.price`, 'Price', { type: 'number', num: true })}<label class="f">Currency${currencySelect(x.cur || S.types.standard.currency, `data-sbind="catalog.${i}.cur"`)}</label>
+          <div style="text-align:right"><button class="btn small danger" data-slrm="catalog" data-i="${i}">Remove</button></div></div></div></div>`).join('') : '<div class="hint">No saved items yet.</div>'}
+    </div>
+
+`}
+  </div>`;
+}
+function cpCount() {
+  const n = cpPicked.size, c = $('#cpCount'), a = $('#cpAdd'); if (!c || !a) return;
+  c.textContent = n ? `${n} item${n === 1 ? '' : 's'} selected` : 'Nothing selected';
+  a.disabled = !n; a.textContent = n ? `Add ${n} to a quote…` : 'Add to a quote…';
+}
+function cpDraw() {
+  const list = $('#cpList'); if (!list) return;
+  const qEl = $('#cpQ'), cEl = $('#cpC');
+  if (cEl && cEl.options.length <= 3 && CATALOG.length) {
+    const keep = cEl.value;
+    [...new Set(CATALOG.map(x => x.c))].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cEl.appendChild(o); });
+    cEl.value = keep;
+  }
+  cpShown = searchCatalog(qEl ? qEl.value : '', { cat: cEl ? cEl.value : '', limit: 300 });
+  list.innerHTML = cpShown.length ? cpShown.map((x, i) => `<label class="cat-row${cpPicked.has(catKey(x)) ? ' on' : ''}"><input type="checkbox" data-cpi="${i}" ${cpPicked.has(catKey(x)) ? 'checked' : ''}>
+      <span class="cat-txt"><span class="cat-t">${esc(x.t)}</span><span class="cat-m">${catMeta(x)}</span>${x.d ? `<span class="cat-d">${esc(x.d)}</span>` : ''}</span></label>`).join('')
+    + (cpShown.length === 300 ? '<div class="hint" style="padding:8px">Showing the first 300 matches. Type more words to narrow the list.</div>' : '')
+    : '<div class="hint" style="padding:12px">No matching items. Try fewer or different words.</div>';
+  cpCount();
+}
+function openAddToQuote() {
+  const items = [...cpPicked.values()]; if (!items.length) return;
+  const qs = state.quotes.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  const label = q => `${quoteNo(q) || '(no number)'} - ${q.client.company || '(no client)'} · ${isPF(q) ? 'Proforma' : TYPE_INFO[q.type].short} · ${q.status}`;
+  openModal(`<h2>Add ${items.length} item${items.length === 1 ? '' : 's'} to a quote</h2>
+    <label class="f">Quote<select id="atqQ"><option value="__new">+ New quote…</option>${qs.map((q, i) => `<option value="${q.id}" ${i === 0 ? 'selected' : ''}>${esc(label(q))}</option>`).join('')}</select></label>
+    <div id="atqG" style="margin-top:10px"></div>
+    <div class="hint" style="margin-top:10px">${items.slice(0, 6).map(x => esc(x.t)).join('<br>')}${items.length > 6 ? `<br>…and ${items.length - 6} more` : ''}</div>
+    <div class="actions"><button class="btn" data-x>Cancel</button><button class="btn primary" id="atqGo">Add items</button></div>`, m => {
+    const qSel = $('#atqQ', m), gBox = $('#atqG', m);
+    const drawGroups = () => {
+      const q = state.quotes.find(x => x.id === qSel.value);
+      gBox.innerHTML = q && q.type === 'project' && q.sections.length > 1
+        ? `<label class="f">Group<select id="atqS">${q.sections.map((s, i) => `<option value="${s.id}">${esc(groupName(s, i))}</option>`).join('')}</select></label>`
+        : (qSel.value === '__new' ? '<div class="hint">You will choose Standard or Project next. Items go into the first group.</div>' : '');
+    };
+    qSel.onchange = drawGroups; drawGroups();
+    $('[data-x]', m).onclick = closeModal;
+    $('#atqGo', m).onclick = () => {
+      const done = q => { cpPicked.clear(); toast(`Added ${items.length} item${items.length === 1 ? '' : 's'} to ${quoteNo(q) || 'the quote'}. Fill in quantities and prices.`); };
+      if (qSel.value === '__new') {
+        closeModal();
+        chooseType(q => { addItemsTo(q, q.sections[0], items); done(q); });
+        return;
+      }
+      const q = state.quotes.find(x => x.id === qSel.value); if (!q) return;
+      const sSel = $('#atqS', m);
+      const sec = (sSel && q.sections.find(s => s.id === sSel.value)) || (q.type === 'project' ? q.sections[0] : q.sections[q.sections.length - 1]);
+      addItemsTo(q, sec, items); closeModal(); go('edit', q.id); done(q);
+    };
+    qSel.focus();
+  });
+}
+document.addEventListener('input', e => { if (e.target.id === 'cpQ') cpDraw(); });
+document.addEventListener('change', e => {
+  if (e.target.id === 'cpC') { cpDraw(); return; }
+  if (e.target.dataset && e.target.dataset.cpi !== undefined) {
+    const x = cpShown[+e.target.dataset.cpi]; if (!x) return;
+    if (e.target.checked) cpPicked.set(catKey(x), x); else cpPicked.delete(catKey(x));
+    e.target.closest('.cat-row').classList.toggle('on', e.target.checked); cpCount();
+  }
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('#cpAdd, #cpClear, [data-cptab]'); if (!b || !state) return;
+  if (b.id === 'cpAdd') openAddToQuote();
+  else if (b.id === 'cpClear') { cpPicked.clear(); cpDraw(); }
+  else { cpTab = b.dataset.cptab; render(); }
+});
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('button,a,[data-act],[data-open]');
@@ -1789,6 +1894,7 @@ document.addEventListener('click', e => {
     e.preventDefault();
     if (d.act === 'home') go('dash');
     else if (d.act === 'settings') go('settings');
+    else if (d.act === 'catalog') go('catalog');
     else if (d.act === 'new') chooseType();
     else if (d.act === 'print') printQuote();
     else if (d.act === 'share') openShare();
@@ -1862,8 +1968,8 @@ document.addEventListener('click', e => {
     }
   }
 
-  // ----- settings structure -----
-  if (view.name === 'settings') {
+  // ----- settings structure (also the saved items on the Catalogue page) -----
+  if (view.name === 'settings' || view.name === 'catalog') {
     const S = state.settings;
     if (d.addprof !== undefined) { S.profiles.push({ id: uid(), name: '', position: '', cell: '', email: '' }); saveSettings(); rerenderEditor(); return; }
     if (d.rmprof) { S.profiles = S.profiles.filter(p => p.id !== d.rmprof); if (S.defaultProfileId === d.rmprof) S.defaultProfileId = S.profiles[0]?.id || null; saveSettings(); rerenderEditor(); return; }
