@@ -163,6 +163,26 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .ptools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
 .ptools .mvgrp{width:auto;max-width:100%;font-size:13px}
 .autocodes{font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;display:flex;gap:6px;align-items:center}
+.sec-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.ac-box{position:fixed;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.28);max-height:min(360px,60vh);overflow:auto}
+.ac-opt{padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)}
+.ac-opt:hover,.ac-opt.on{background:color-mix(in srgb,var(--teal) 14%,transparent)}
+.ac-t{font-weight:600;font-size:14px}
+.ac-m{font-size:12px;color:var(--muted);margin-top:2px}
+.ac-foot{font-size:11px;color:var(--muted);padding:6px 10px}
+@media (pointer:coarse){.ac-foot{display:none}.ac-opt{padding:11px 12px}}
+.cat-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.cat-bar input{flex:2 1 220px;min-width:0}
+.cat-bar select{flex:1 1 180px;width:auto;min-width:0}
+.cat-list{border:1px solid var(--line);border-radius:10px;max-height:min(52vh,460px);overflow:auto}
+.cat-row{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.cat-row:last-child{border-bottom:0}
+.cat-row.on{background:color-mix(in srgb,var(--teal) 12%,transparent)}
+.cat-row input{margin-top:3px;flex:0 0 auto;width:18px;height:18px}
+.cat-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cat-t{font-weight:600}
+.cat-m{font-size:12px;color:var(--teal-ink)}
+.cat-d{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .pitem.flash{box-shadow:0 0 0 2px var(--teal);transition:box-shadow .3s}
 .section-head{display:flex;gap:6px;align-items:end;margin-bottom:8px}
 .section-head label{flex:1}
@@ -172,7 +192,7 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .pitem .row2{display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px}
 .pitem .row3{display:grid;grid-template-columns:90px 130px 1fr;gap:6px;margin-top:6px;align-items:end}
 .pitem .ext{text-align:right;font-weight:600;padding-bottom:6px;font-variant-numeric:tabular-nums}
-@media (max-width:640px){.pitem .row1{grid-template-columns:1fr auto}.pitem .row1 .code{grid-column:1/-1}}
+@media (max-width:640px){.pitem .row1{grid-template-columns:1fr}.pitem .row1 .pacts{order:-1;justify-self:end;padding-bottom:0}}
 .totals-box{display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-variant-numeric:tabular-nums;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .totals-box .big{font-weight:700;font-size:16px}
 .list-ed .li{display:flex;gap:6px;margin-bottom:6px;align-items:flex-start}
@@ -559,6 +579,7 @@ function defaultSettings() {
         additionalNotes: DEFAULT_PROJ_ADDITIONAL.slice()
       }
     },
+    catalog: [],   // items saved by staff: { id, t, d, price, cur }
     lastBackup: null
   };
 }
@@ -771,6 +792,58 @@ function linkValidity(text) {
   return { text: text.slice(0, m.index) + m[1] + '{validity}' + m[3] + text.slice(m.index + m[0].length), days: n };
 }
 function termText(t, q) { return String(t).replace(/\{validity\}/g, num(q.validityDays)); }
+
+/* ---------- item catalogue ---------- */
+// built-in list (catalog.json, generic items without prices) + staff's saved items + items from past quotes
+let catalogP = null, CATALOG = [];
+function loadCatalog() {
+  if (!catalogP) catalogP = fetch('catalog.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).catch(() => [])
+    .then(a => { CATALOG = Array.isArray(a) ? a.map(x => Object.assign({ src: 'std' }, x)) : []; return CATALOG; });
+  return catalogP;
+}
+function savedItems() { return (state.settings.catalog || []).filter(x => x && x.t).map(x => Object.assign({ src: 'mine', c: 'My items' }, x)); }
+function pastItems(excludeId) {
+  const m = new Map();
+  state.quotes.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (a.updated || 0) - (b.updated || 0))
+    .forEach(q => allItems(q).forEach(({ it }) => {
+      const t = String(it.title || '').trim(); if (!t || it.id === excludeId) return;
+      m.set(t.toLowerCase(), { src: 'past', c: 'Previously quoted', t, d: it.details || '', price: it.price, cur: q.currency, ref: quoteNo(q), date: q.date });
+    }));
+  return [...m.values()];
+}
+const SRC_RANK = { mine: 300, past: 200, std: 100 };
+function searchCatalog(query, opt = {}) {
+  const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const qn = String(query || '').trim().toLowerCase();
+  let pool = [...savedItems(), ...pastItems(opt.excludeId), ...CATALOG];
+  if (opt.cat === 'mine') pool = pool.filter(x => x.src === 'mine');
+  else if (opt.cat === 'past') pool = pool.filter(x => x.src === 'past');
+  else if (opt.cat) pool = pool.filter(x => x.src === 'std' && x.c === opt.cat);
+  const res = [];
+  for (const x of pool) {
+    const title = x.t.toLowerCase(), hay = title + ' ' + String(x.d || '').toLowerCase() + ' ' + String(x.c || '').toLowerCase();
+    if (!words.every(w => hay.includes(w))) continue;
+    const score = SRC_RANK[x.src] + (qn && title.startsWith(qn) ? 60 : 0) + (words.length && words.every(w => title.includes(w)) ? 30 : 0);
+    res.push({ x, score });
+  }
+  res.sort((a, b) => b.score - a.score || a.x.t.localeCompare(b.x.t));
+  // the same title once only: saved item first, then the last quoted one, then the built-in one
+  const seen = new Set();
+  return res.filter(r => { const k = r.x.t.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, opt.limit || 50).map(r => r.x);
+}
+function catKey(x) { return x.src + '|' + x.t; }
+function catMeta(x, q) {
+  if (x.src === 'mine') return 'My item' + (num(x.price) ? ` · ${esc(x.cur || '')} ${money(x.price)}` : '');
+  if (x.src === 'past') return `Quoted on ${esc(x.ref || '')}` + (num(x.price) ? ` · ${esc(x.cur || '')} ${money(x.price)}` : '');
+  return esc(x.c) + (x.u && x.u !== 'each' ? ' · per ' + esc(x.u) : '');
+}
+// put a catalogue entry into an item (price only when it was quoted in the same currency)
+function fillFromCatalog(q, it, x) {
+  it.title = x.t;
+  if (x.d) it.details = x.d;
+  if (num(x.price) && !num(it.price) && (!x.cur || x.cur === q.currency)) it.price = num(x.price);
+  if (x.code && !it.code) it.code = x.code;
+}
 
 /* ---------- routing ---------- */
 let view = { name: 'dash', id: null, tab: 'edit' };
@@ -1031,14 +1104,14 @@ function renderEditor(q) {
 }
 
 function itemActions(id, idx, len) {
-  return `<button class="btn icon small" data-mv="${id}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Move up">↑</button><button class="btn icon small" data-mv="${id}" data-dir="1" ${idx === len - 1 ? 'disabled' : ''} title="Move down">↓</button><button class="btn icon small danger" data-rmitem="${id}" title="Remove">✕</button>`;
+  return `<button class="btn icon small" data-savecat="${id}" title="Save this item to your catalogue" aria-label="Save to catalogue"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button><button class="btn icon small" data-mv="${id}" data-dir="-1" ${idx === 0 ? 'disabled' : ''} title="Move up">↑</button><button class="btn icon small" data-mv="${id}" data-dir="1" ${idx === len - 1 ? 'disabled' : ''} title="Move down">↓</button><button class="btn icon small danger" data-rmitem="${id}" title="Remove">✕</button>`;
 }
 
 function renderStandardItems(q) {
   const flat = allItems(q);
   const rows = flat.map(({ it, si, ii }, k) => {
     const p = `sections.${si}.items.${ii}`;
-    return `<div class="istd-row">
+    return `<div class="istd-row" data-row="${it.id}">
       <div class="n">${pad(k + 1, 3)}</div>
       <div class="d">${inp(p + '.title', null, { placeholder: 'Description' })}
         <details class="more" ${it.details ? 'open' : ''}><summary>${it.details ? 'Extra details' : '+ Add details'}</summary>${inp(p + '.details', null, { area: true, rows: 2 })}</details></div>
@@ -1053,7 +1126,7 @@ function renderStandardItems(q) {
       <div class="istd-head"><div>#</div><div>Description</div><div>Qty</div><div>Unit price</div><div class="r">Extended</div><div></div></div>
       ${rows || ''}
     </div>
-    <div style="margin-top:8px"><button class="btn small" data-additem="${q.sections[q.sections.length - 1].id}">+ Add item</button></div>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" data-additem="${q.sections[q.sections.length - 1].id}">+ Add item</button><button class="btn small" data-browse="${q.sections[q.sections.length - 1].id}">Browse catalogue…</button></div>
   </div>`;
 }
 
@@ -1070,7 +1143,7 @@ function renderProjectItems(q) {
         <div class="row1">
           <div class="code">${inp(p + '.code', q.autoCodes ? 'Item no. (auto) or part no.' : 'Item no. / part no.', { placeholder: auto })}</div>
           ${inp(p + '.title', 'Item title (bold)')}
-          <div style="padding-bottom:4px;white-space:nowrap">${itemActions(it.id, ii, s.items.length)}</div>
+          <div class="pacts" style="padding-bottom:4px;white-space:nowrap">${itemActions(it.id, ii, s.items.length)}</div>
         </div>
         <div class="row2">${inp(p + '.details', 'Detailed description', { area: true, rows: 3 })}</div>
         <div class="row3">
@@ -1100,7 +1173,7 @@ function renderProjectItems(q) {
           ? `<button class="btn add-item" data-additem="${s.id}" data-at="top">+ Add item at top of ${nm}</button>${items}
              <button class="btn add-item" data-additem="${s.id}">+ Add item at end of ${nm}</button>`
           : `<div class="hint" style="margin-bottom:8px">No items in this group yet.</div><button class="btn add-item" data-additem="${s.id}">+ Add item to ${nm}</button>`}
-        <div class="section-total">Group total: <strong data-sectot="${s.id}">${money(sectionTotal(s))}</strong></div>
+        <div class="sec-foot"><button class="btn small" data-browse="${s.id}">Browse catalogue…</button><span class="section-total">Group total: <strong data-sectot="${s.id}">${money(sectionTotal(s))}</strong></span></div>
       </div></div>`;
   }).join('');
   return `<div class="card"><h3><span class="grow">Items by group</span>
@@ -1521,6 +1594,14 @@ function renderSettings() {
         <div style="margin-top:14px"><div class="hint" style="margin-bottom:6px"><strong>Additional notes</strong></div>${sList('types.project.additionalNotes', S.types.project.additionalNotes || [])}</div>` : ''}
       </div>`).join('')}
 
+    <div class="card"><h3><span class="grow">My catalogue (saved items)</span><button class="btn small" data-addcat>+ Add item</button></h3>
+      <p class="hint" style="margin-top:0">Items you save with the bookmark button on a quote line appear first when you type an item title, with their price. Both staff share this list. The built-in list of ${CATALOG.length || 'about 850'} standard IT items and everything you have quoted before are searched too.</p>
+      ${(S.catalog || []).length ? (S.catalog || []).map((x, i) => `<div class="section"><div class="sec-body"><div class="grid g2">${sInp(`catalog.${i}.t`, 'Title')}${sInp(`catalog.${i}.code`, 'Part no. (optional)')}</div>
+        <div style="margin-top:8px">${sInp(`catalog.${i}.d`, 'Detailed description', { area: true, rows: 2 })}</div>
+        <div class="grid g3" style="margin-top:8px;align-items:end">${sInp(`catalog.${i}.price`, 'Price', { type: 'number', num: true })}<label class="f">Currency${currencySelect(x.cur || S.types.standard.currency, `data-sbind="catalog.${i}.cur"`)}</label>
+          <div style="text-align:right"><button class="btn small danger" data-slrm="catalog" data-i="${i}">Remove</button></div></div></div></div>`).join('') : '<div class="hint">No saved items yet.</div>'}
+    </div>
+
     <div class="card"><h3>Backup &amp; restore</h3>
       <p class="hint" style="margin-top:0">${CLOUD ? 'Quotes are saved online and shared by everyone who signs in. Download a backup now and then for safekeeping. Restoring adds the backup\'s quotes to the online ones.' : 'Quotes are saved in this browser on this computer. Download a backup regularly, and use it to move your quotes to another PC.'}</p>
       <button class="btn" data-act="export">Download backup</button> <button class="btn" data-act="import">Restore from backup…</button>
@@ -1585,6 +1666,118 @@ function importBackup() {
   f.click();
 }
 
+/* ---------- catalogue suggestions while typing an item title ---------- */
+const AC = { box: null, input: null, list: [], sel: -1 };
+const isItemTitle = el => el && el.dataset && /^sections\.\d+\.items\.\d+\.title$/.test(el.dataset.bind || '');
+function acClose() { if (AC.box) AC.box.remove(); AC.box = null; AC.input = null; AC.list = []; AC.sel = -1; }
+function acItem(el) { const m = /^sections\.(\d+)\.items\.(\d+)\.title$/.exec(el.dataset.bind); const q = current(); return q && q.sections[+m[1]] ? q.sections[+m[1]].items[+m[2]] : null; }
+function acOpen(el) {
+  const q = current(), it = acItem(el); if (!q || !it) return acClose();
+  const v = el.value.trim();
+  if (v.length < 2) return acClose();
+  const list = searchCatalog(v, { excludeId: it.id, limit: 8 }).filter(x => x.t.toLowerCase() !== v.toLowerCase() || x.d);
+  if (!list.length) return acClose();
+  if (!AC.box) { AC.box = document.createElement('div'); AC.box.className = 'ac-box'; AC.box.setAttribute('role', 'listbox'); document.body.appendChild(AC.box); }
+  AC.input = el; AC.list = list; AC.sel = -1;
+  AC.box.innerHTML = list.map((x, i) => `<div class="ac-opt" role="option" data-aci="${i}"><div class="ac-t">${esc(x.t)}</div><div class="ac-m">${catMeta(x, q)}</div></div>`).join('')
+    + `<div class="ac-foot">↑↓ to choose · Enter to use · Esc to close</div>`;
+  acPlace();
+}
+function acPlace() {
+  if (!AC.box || !AC.input) return;
+  const r = AC.input.getBoundingClientRect();
+  const w = Math.max(r.width, Math.min(420, window.innerWidth - 16));
+  AC.box.style.width = w + 'px';
+  AC.box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  const below = window.innerHeight - r.bottom;
+  if (below < 220 && r.top > below) { AC.box.style.top = ''; AC.box.style.bottom = (window.innerHeight - r.top + 4) + 'px'; }
+  else { AC.box.style.bottom = ''; AC.box.style.top = (r.bottom + 4) + 'px'; }
+}
+function acPick(i) {
+  const x = AC.list[i], el = AC.input; if (!x || !el) return;
+  const q = current(), it = acItem(el); acClose(); if (!q || !it) return;
+  fillFromCatalog(q, it, x); touch(q); rerenderEditor();
+  const box = $(`[data-item="${it.id}"]`) || $(`[data-row="${it.id}"]`);
+  const qty = box ? $('[data-bind$=".qty"]', box) : null;
+  if (qty) { qty.focus({ preventScroll: true }); qty.select(); }
+}
+function acMark() { $all('.ac-opt', AC.box).forEach((o, i) => o.classList.toggle('on', i === AC.sel)); const o = AC.box && AC.box.children[AC.sel]; if (o && o.scrollIntoView) o.scrollIntoView({ block: 'nearest' }); }
+document.addEventListener('input', e => { if (isItemTitle(e.target)) { loadCatalog().then(() => { if (document.activeElement === e.target) acOpen(e.target); }); } });
+document.addEventListener('keydown', e => {
+  if (!AC.box || e.target !== AC.input) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); AC.sel = (AC.sel + 1) % AC.list.length; acMark(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); AC.sel = (AC.sel - 1 + AC.list.length) % AC.list.length; acMark(); }
+  else if (e.key === 'Enter' && AC.sel >= 0) { e.preventDefault(); acPick(AC.sel); }
+  else if (e.key === 'Escape') { e.preventDefault(); acClose(); }
+});
+document.addEventListener('mousedown', e => {
+  const o = e.target.closest && e.target.closest('.ac-opt');
+  if (o) { e.preventDefault(); acPick(+o.dataset.aci); return; }
+  if (AC.box && !e.target.closest('.ac-box') && e.target !== AC.input) acClose();
+});
+document.addEventListener('focusout', e => { if (e.target === AC.input) setTimeout(() => { if (document.activeElement !== AC.input) acClose(); }, 150); });
+window.addEventListener('resize', acPlace);
+document.addEventListener('scroll', acPlace, true);
+
+/* ---------- browse the catalogue and add several items to a group ---------- */
+async function openCatalog(secId) {
+  const q = current(); if (!q) return;
+  const sec = q.sections.find(s => s.id === secId) || q.sections[q.sections.length - 1];
+  const si = q.sections.indexOf(sec);
+  await loadCatalog();
+  const cats = [...new Set(CATALOG.map(x => x.c))];
+  const picked = new Map();
+  const target = q.type === 'project' ? groupName(sec, si) : 'this quote';
+  openModal(`<h2>Item catalogue</h2>
+    <div class="hint" style="margin-bottom:10px">Tick the items you need and add them to <strong>${esc(target)}</strong>. Prices come only from your saved items and past quotes.</div>
+    <div class="cat-bar">
+      <input type="search" id="catQ" placeholder="Search e.g. 6U cabinet, cat6 patch cord, IP phone" autocomplete="off">
+      <select id="catC"><option value="">All categories</option><option value="mine">My saved items</option><option value="past">Previously quoted</option>${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+    </div>
+    <div class="cat-list" id="catList"></div>
+    <div class="actions" style="justify-content:space-between;align-items:center">
+      <span class="hint" id="catCount">Nothing selected</span>
+      <span style="display:flex;gap:8px"><button class="btn" data-x>Cancel</button><button class="btn primary" id="catAdd" disabled>Add items</button></span>
+    </div>`, m => {
+    const qEl = $('#catQ', m), cEl = $('#catC', m), list = $('#catList', m), addBtn = $('#catAdd', m), cnt = $('#catCount', m);
+    let shown = [];
+    const draw = () => {
+      shown = searchCatalog(qEl.value, { cat: cEl.value, limit: 200 });
+      list.innerHTML = shown.length ? shown.map((x, i) => `<label class="cat-row${picked.has(catKey(x)) ? ' on' : ''}"><input type="checkbox" data-ci="${i}" ${picked.has(catKey(x)) ? 'checked' : ''}>
+          <span class="cat-txt"><span class="cat-t">${esc(x.t)}</span><span class="cat-m">${catMeta(x, q)}</span>${x.d ? `<span class="cat-d">${esc(x.d)}</span>` : ''}</span></label>`).join('')
+        + (shown.length === 200 ? '<div class="hint" style="padding:8px">Showing the first 200 matches. Type more words to narrow the list.</div>' : '')
+        : '<div class="hint" style="padding:12px">No matching items. Try fewer or different words.</div>';
+    };
+    const count = () => { const n = picked.size; cnt.textContent = n ? `${n} item${n === 1 ? '' : 's'} selected` : 'Nothing selected'; addBtn.disabled = !n; addBtn.textContent = n ? `Add ${n} item${n === 1 ? '' : 's'}` : 'Add items'; };
+    list.addEventListener('change', e => {
+      const x = shown[+e.target.dataset.ci]; if (!x) return;
+      if (e.target.checked) picked.set(catKey(x), x); else picked.delete(catKey(x));
+      e.target.closest('.cat-row').classList.toggle('on', e.target.checked); count();
+    });
+    qEl.addEventListener('input', draw); cEl.addEventListener('change', draw);
+    $('[data-x]', m).onclick = closeModal;
+    addBtn.onclick = () => {
+      // drop empty rows at the end of the group first, then add the picked items in the order they were ticked
+      while (sec.items.length && !hasContent(sec.items[sec.items.length - 1]) && !sec.items[sec.items.length - 1].code) sec.items.pop();
+      picked.forEach(x => { const it = blankItem(); fillFromCatalog(q, it, x); sec.items.push(it); });
+      const n = picked.size; closeModal(); touch(q); rerenderEditor();
+      toast(`Added ${n} item${n === 1 ? '' : 's'}${q.type === 'project' ? ' to ' + groupName(sec, si) : ''}. Fill in quantities and prices.`);
+    };
+    draw(); count(); qEl.focus();
+  });
+}
+function saveToCatalog(id) {
+  const q = current(), loc = q && findItem(q, id); if (!loc) return;
+  const it = q.sections[loc.si].items[loc.ii], t = String(it.title || '').trim();
+  if (!t) { toast('Type the item title first, then save it.'); return; }
+  const S = state.settings; S.catalog = S.catalog || [];
+  const ex = S.catalog.find(x => x && String(x.t || '').toLowerCase() === t.toLowerCase());
+  const rec = { t, d: it.details || '', price: num(it.price) || '', cur: q.currency, code: POS_CODE.test(String(it.code || '').trim()) ? '' : (it.code || '') };
+  if (ex) Object.assign(ex, rec); else S.catalog.push(Object.assign({ id: uid() }, rec));
+  saveSettings();
+  toast(ex ? `Updated "${t}" in your catalogue` : `Saved "${t}" to your catalogue`);
+}
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('button,a,[data-act],[data-open]');
@@ -1611,6 +1804,7 @@ document.addEventListener('click', e => {
   if (d.mkpf) { createProforma(d.mkpf); return; }
   if (d.openq) { e.preventDefault(); go('edit', d.openq); return; }
   if (d.kf) { kindFilter = d.kf; render(); return; }
+  if (d.addcat !== undefined) { const S = state.settings; S.catalog = S.catalog || []; S.catalog.push({ id: uid(), t: '', d: '', price: '', cur: S.types.standard.currency, code: '' }); saveSettings(); render(); return; }
   if (d.themeset) { setTheme(d.themeset); return; }
   if (d.del) {
     const dq = state.quotes.find(x => x.id === d.del);
@@ -1636,6 +1830,8 @@ document.addEventListener('click', e => {
       if (d.at === 'top') s.items.unshift(it); else s.items.push(it);
       touch(q); rerenderEditor(); focusItem(it.id); return;
     }
+    if (d.browse) { openCatalog(d.browse); return; }
+    if (d.savecat) { saveToCatalog(d.savecat); return; }
     if (d.insbelow) {
       const loc = findItem(q, d.insbelow), it = blankItem();
       q.sections[loc.si].items.splice(loc.ii + 1, 0, it);
@@ -1975,6 +2171,7 @@ function renderSetPassword() {
   };
 }
 async function startSession(session) {
+  loadCatalog();
   userEmail = (session.user && session.user.email) || '';
   $('#app').innerHTML = centerCard('<p class="hint" style="text-align:center">Loading quotes…</p>');
   const { data: ok, error } = await sb.rpc('hq_is_staff');
