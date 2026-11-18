@@ -157,6 +157,7 @@ details.more textarea{margin-top:4px;min-height:48px;font-size:13px}
 .sec-bar .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);color:#fff}
 .sec-bar .btn:disabled{opacity:.35}
 .sec-body{padding:10px}
+.section-head input{text-transform:uppercase}
 .btn.add-item{width:100%;justify-content:center;border-style:dashed;border-color:color-mix(in srgb,var(--teal) 60%,transparent);margin-bottom:8px;color:var(--teal-ink);font-weight:600;min-width:0}
 .sec-nm{display:inline-block;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;margin-left:.3em}
 .ptools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
@@ -654,6 +655,17 @@ function normaliseQuote(q) {
   if (q.taxPct === undefined) q.taxPct = 0;
   q.status = q.status || 'draft';
   q.kind = q.kind === 'proforma' ? 'proforma' : 'quote';
+  if (!q.validityV2) {
+    const fresh = (q.date || '') >= AUTO_CODES_FROM;
+    q.terms = (q.terms || []).map(t => { const r = linkValidity(String(t)); return r.days !== null && (fresh || r.days === num(q.validityDays)) ? r.text : t; });
+    q.validityV2 = true;
+  }
+  if (!q.codesV2) {   // one-time: quotes dated from AUTO_CODES_FROM switch to automatic A001-style codes
+    if ((q.date || '') >= AUTO_CODES_FROM) {
+      adoptAutoCodes(q);
+    }
+    q.codesV2 = true;
+  }
   q.autoCodes = !!q.autoCodes;
   return q;
 }
@@ -669,7 +681,7 @@ function newQuote(type, seq, kind) {
     sections: type === 'project'
       ? (T.groups && T.groups.length ? T.groups : ['']).map(n => ({ id: uid(), name: n, items: [blankItem()] }))
       : [{ id: uid(), name: '', items: [blankItem()] }],
-    discountPct: 0, taxPct: 0, autoCodes: true,
+    discountPct: 0, taxPct: 0, autoCodes: true, codesV2: true, validityV2: true,
     notes: type === 'project' ? clone(T.notes || []) : [],
     additionalNotes: type === 'project' ? clone(T.additionalNotes || []) : [],
     terms: clone(T.terms)
@@ -725,8 +737,21 @@ function allItems(q) { const out = []; q.sections.forEach((s, si) => s.items.for
 function groupLetter(i) { let t = ''; i++; while (i > 0) { const m = (i - 1) % 26; t = String.fromCharCode(65 + m) + t; i = Math.floor((i - 1) / 26); } return t; }
 // a group named "D. Services" or "D) Services" uses D; otherwise A, B, C… by position
 function secLetter(q, si) { const m = /^\s*([A-Za-z])\s*[.):-]\s+\S/.exec(q.sections[si].name || ''); return m ? m[1].toUpperCase() : groupLetter(si); }
-// position-style codes such as "A1", "B", "C." or "D-2" (typed by hand); real part codes are kept
-const POS_CODE = /^[A-Za-z]\s*[-.]?\s*\d{0,3}\.?$/;
+const hasContent = it => !!(it.title || it.details || num(it.price));
+function autoCodeMap(q) {
+  const m = new Map();
+  q.sections.forEach((s, si) => { let k = 0; const L = secLetter(q, si);
+    s.items.forEach(it => { if (hasContent(it)) k++; m.set(it.id, L + pad(hasContent(it) ? k : k + 1, 3)); }); });
+  return m;
+}
+// codes go automatic from this date on (older quotes keep the codes they were sent with)
+const AUTO_CODES_FROM = '2026-11-18';
+// a copy dated today uses automatic codes (typed A1-style codes are dropped, real part numbers kept)
+function adoptAutoCodes(q) { q.autoCodes = true; q.codesV2 = true; q.sections.forEach(s => s.items.forEach(it => { if (it.code && POS_CODE.test(String(it.code).trim())) it.code = ''; })); }
+// position-style codes such as "A1", "B", "C.", "D-2" or "002" (typed by hand); real part codes are kept
+const POS_CODE = /^(?:[A-Za-z]\s*[-.]?\s*\d{0,3}|\d{1,3})\.?$/;
+// group headers are always shown in capitals
+function groupName(s, i) { return (s.name || 'Group ' + (i + 1)).toUpperCase(); }
 function lineTotal(it) { return num(it.qty) * num(it.price); }
 function sectionTotal(s) { return s.items.reduce((a, it) => a + lineTotal(it), 0); }
 function totals(q) {
@@ -734,6 +759,16 @@ function totals(q) {
   const disc = sub * num(q.discountPct) / 100;
   const tax = (sub - disc) * num(q.taxPct) / 100;
   return { sub, disc, tax, total: sub - disc + tax };
+}
+// "valid for 7 days", "validity of 14 days", "valid for {validity} days", "Prices are valid for 30 days from…"
+const VALID_RE = /(valid(?:ity)?\s+(?:for\s+|of\s+|period\s+of\s+)?)(\d+|\{validity\})(\s*(?:calendar\s+|working\s+)?days?\b)/i;
+// a term typed in the editor: if it states the validity, link it to "Valid for (days)" and return the number
+function linkValidity(text) {
+  const m = VALID_RE.exec(text);
+  if (!m || m[2] === '{validity}') return { text, days: null };
+  const n = parseInt(m[2], 10);
+  if (!(n > 0)) return { text, days: null };
+  return { text: text.slice(0, m.index) + m[1] + '{validity}' + m[3] + text.slice(m.index + m[0].length), days: n };
 }
 function termText(t, q) { return String(t).replace(/\{validity\}/g, num(q.validityDays)); }
 
@@ -986,8 +1021,8 @@ function renderEditor(q) {
 
     <div class="card"><h3><span class="grow">Terms and conditions</span>
       <button class="btn small" data-resetterms>Reset to ${isPF(q) ? 'proforma' : TYPE_INFO[q.type].short} defaults</button></h3>
-      <div class="hint" style="margin-bottom:8px">Write <code>{validity}</code> to insert the number of days this quote is valid for.</div>
-      ${listEditor('terms', q.terms)}
+      <div class="hint" style="margin-bottom:8px">The validity term is linked to <strong>Valid for (days)</strong> at the top: change either one and the other follows.</div>
+      ${listEditor('terms', q.terms, '', t => termText(t, q))}
     </div>
    </div>
 
@@ -1023,18 +1058,17 @@ function renderStandardItems(q) {
 }
 
 function renderProjectItems(q) {
-  const multi = q.sections.length > 1; let k = 0;
+  const multi = q.sections.length > 1; const codes = autoCodeMap(q);
   const secs = q.sections.map((s, si) => {
-    const gname = esc(s.name || 'Group ' + (si + 1));
+    const gname = esc(groupName(s, si));
     const nm = `<span class="sec-nm" data-secname="${s.id}" data-si="${si}">${gname}</span>`;
-    const moveOpts = multi ? q.sections.map((g, gi) => gi === si ? '' : `<option value="${g.id}">${esc(g.name || 'Group ' + (gi + 1))}</option>`).join('') : '';
+    const moveOpts = multi ? q.sections.map((g, gi) => gi === si ? '' : `<option value="${g.id}">${esc(groupName(g, gi))}</option>`).join('') : '';
     const items = s.items.map((it, ii) => {
       const p = `sections.${si}.items.${ii}`;
-      if (ii === 0) k = 0; if (it.title || it.details || num(it.price)) k++;
-      const auto = q.autoCodes ? secLetter(q, si) + Math.max(k, 1) : pad(ii + 1, 3);
+      const auto = q.autoCodes ? codes.get(it.id) : pad(ii + 1, 3);
       return `<div class="pitem" data-item="${it.id}">
         <div class="row1">
-          <div class="code">${inp(p + '.code', q.autoCodes ? 'Code (auto: ' + auto + ')' : 'Part code', { placeholder: auto })}</div>
+          <div class="code">${inp(p + '.code', q.autoCodes ? 'Item no. (auto) or part no.' : 'Item no. / part no.', { placeholder: auto })}</div>
           ${inp(p + '.title', 'Item title (bold)')}
           <div style="padding-bottom:4px;white-space:nowrap">${itemActions(it.id, ii, s.items.length)}</div>
         </div>
@@ -1070,7 +1104,7 @@ function renderProjectItems(q) {
       </div></div>`;
   }).join('');
   return `<div class="card"><h3><span class="grow">Items by group</span>
-      <label class="autocodes"><input type="checkbox" data-autocodes ${q.autoCodes ? 'checked' : ''}> Number items automatically (A1, A2, B1…)</label></h3>${secs}
+      <label class="autocodes"><input type="checkbox" data-autocodes ${q.autoCodes ? 'checked' : ''}> Number items automatically (A001, A002, B001…)</label></h3>${secs}
     <button class="btn small" data-addsec>+ Add group</button></div>`;
 }
 
@@ -1095,10 +1129,10 @@ function renderProjectNotes(q) {
   </div>`;
 }
 
-function listEditor(key, arr, base) {
+function listEditor(key, arr, base, show) {
   const root = base || '';
   const rows = arr.map((t, i) => `<div class="li"><span class="k">${i + 1}.</span>
-      <textarea data-bind="${root}${key}.${i}" rows="1">${esc(t)}</textarea>
+      <textarea data-bind="${root}${key}.${i}" rows="1">${esc(show ? show(t) : t)}</textarea>
       <span style="white-space:nowrap"><button class="btn icon small" data-lmv="${root}${key}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button><button class="btn icon small" data-lmv="${root}${key}" data-i="${i}" data-dir="1" ${i === arr.length - 1 ? 'disabled' : ''}>↓</button><button class="btn icon small danger" data-lrm="${root}${key}" data-i="${i}">✕</button></span></div>`).join('');
   return `<div class="list-ed">${rows}</div><button class="btn small" data-ladd="${root}${key}">+ Add line</button>`;
 }
@@ -1160,18 +1194,18 @@ function renderDoc(q) {
   // project
   // the summary and the detailed description are built from the same groups, so their totals always agree
   const groups = q.sections
-    .map((s, i) => ({ s, si: i, name: s.name || 'Group ' + (i + 1), its: s.items.filter(it => it.title || it.details || num(it.price)) }))
+    .map((s, i) => ({ s, si: i, name: groupName(s, i), its: s.items.filter(it => it.title || it.details || num(it.price)) }))
     .filter(g => g.its.length);
   const sumRow = (label, v, cls) => `<tr class="tot${cls ? ' ' + cls : ''}"><td></td><td style="text-align:right">${label}</td><td class="r">${v}</td></tr>`;
   const adj = num(q.discountPct) || num(q.taxPct);
-  const summary = groups.map((g, i) => `<tr><td>${pad(i + 1, 3)}</td><td>${esc(g.name)}</td><td class="r">${money(sectionTotal(g.s))}</td></tr>`).join('')
+  const summary = groups.map((g, i) => `<tr><td>${q.autoCodes ? secLetter(q, g.si) : pad(i + 1, 3)}</td><td>${esc(g.name)}</td><td class="r">${money(sectionTotal(g.s))}</td></tr>`).join('')
     + (adj ? sumRow('Sub Total', money(t.sub))
       + (num(q.discountPct) ? sumRow(`Discount (${num(q.discountPct)}%)`, '-' + money(t.disc)) : '')
       + (num(q.taxPct) ? sumRow(`Tax (${num(q.taxPct)}%)`, money(t.tax)) : '') : '')
     + sumRow('TOTAL ' + cur, money(t.total), adj ? 'grand' : '');
-  let n = 0;
+  let n = 0; const docCodes = autoCodeMap(q);
   const detail = groups.map(g => `<tr class="sec"><td colspan="5">${esc(g.name)}</td></tr>`
-    + g.its.map((it, k) => { n++; return `<tr><td style="font-size:9pt;word-break:break-word">${esc(it.code || (q.autoCodes ? secLetter(q, g.si) + (k + 1) : pad(n, 3)))}</td><td>${desc(it)}</td>
+    + g.its.map((it, k) => { n++; return `<tr><td style="font-size:9pt;word-break:break-word">${esc(it.code || (q.autoCodes ? docCodes.get(it.id) : pad(n, 3)))}</td><td>${desc(it)}</td>
         <td class="c">${esc(it.qty)}</td><td class="r">${money(it.price)}</td><td class="r">${money(lineTotal(it))}</td></tr>`; }).join('')
     + `<tr class="subt"><td></td><td colspan="3" style="text-align:right">Sub Total: ${esc(g.name)}</td><td class="r">${money(sectionTotal(g.s))}</td></tr>`).join('');
   const notes = q.notes.filter(x => x.label || x.description || x.price !== '' && x.price != null);
@@ -1206,7 +1240,9 @@ function refreshPreview() {
      <span class="big">Total ${cur}</span><span class="big">${money(t.total)}</span>`;
   allItems(q).forEach(({ it }) => { const e = $(`[data-ext="${it.id}"]`); if (e) e.textContent = money(lineTotal(it)); });
   q.sections.forEach(s => { $all(`[data-sectot="${s.id}"]`).forEach(e => e.textContent = money(sectionTotal(s))); });
-  $all('[data-secname]').forEach(e => { const s = q.sections[+e.dataset.si]; if (s && s.id === e.dataset.secname) e.textContent = s.name || 'Group ' + (+e.dataset.si + 1); });
+  if (q.autoCodes && q.type === 'project') { const cm = autoCodeMap(q); q.sections.forEach((s, si) => s.items.forEach((it, ii) => { const e = $(`[data-bind="sections.${si}.items.${ii}.code"]`); if (e) e.placeholder = cm.get(it.id); })); }
+  (q.terms || []).forEach((t, i) => { if (String(t).includes('{validity}')) { const e = $(`[data-bind="terms.${i}"]`); if (e && e !== document.activeElement) e.value = termText(t, q); } });
+  $all('[data-secname]').forEach(e => { const s = q.sections[+e.dataset.si]; if (s && s.id === e.dataset.secname) e.textContent = groupName(s, +e.dataset.si); });
   const no = quoteNo(q);
   const l = $('#qnoLabel'); if (l) l.textContent = no;
   const a = $('#qnoAuto'); if (a) a.value = no;
@@ -1251,7 +1287,7 @@ async function duplicateQuote(id) {
   const src = state.quotes.find(q => q.id === id); if (!src) return;
   let seq; try { seq = await allocSeq(src.kind); } catch (e) { toast(seqErrorText(src.kind)); return; }
   const q = stripPrivate(src); delete q.importedFrom;
-  q.id = uid(); q.created = q.updated = Date.now(); q.status = 'draft'; q.date = todayISO();
+  q.id = uid(); q.created = q.updated = Date.now(); q.status = 'draft'; q.date = todayISO(); adoptAutoCodes(q);
   q.seq = seq; q.numberAuto = true; q.number = '';
   q.sections.forEach(s => { s.id = uid(); s.items.forEach(i => i.id = uid()); });
   normaliseQuote(q); state.quotes.push(q); if (CLOUD) dirtyQuotes.add(q.id); save(true); go('edit', q.id); toast('Duplicated as ' + quoteNo(q));
@@ -1261,7 +1297,7 @@ async function createProforma(id) {
   let seq; try { seq = await allocSeq('proforma'); } catch (e) { toast(seqErrorText('proforma')); return; }
   const p = stripPrivate(src);
   delete p.importedFrom;
-  p.id = uid(); p.created = p.updated = Date.now(); p.date = todayISO();
+  p.id = uid(); p.created = p.updated = Date.now(); p.date = todayISO(); adoptAutoCodes(p);
   p.seq = seq; p.numberAuto = true; p.number = '';
   p.quoteId = src.id; p.quoteRef = quoteNo(src);
   applyProformaDefaults(p);
@@ -1656,9 +1692,17 @@ document.addEventListener('input', e => {
   if (!state) return;
   if (el.id === 'search') { search = el.value; const pos = el.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); return; }
   if (el.dataset.bind) {
+    if (/^sections\.\d+\.name$/.test(el.dataset.bind) && el.value !== el.value.toUpperCase()) { const a = el.selectionStart, b = el.selectionEnd; el.value = el.value.toUpperCase(); try { el.setSelectionRange(a, b); } catch (e) {} }
     const q = current(); if (!q) return;
     let v = el.value;
     if (el.dataset.num) v = v === '' ? '' : num(v);
+    if (/^terms\.\d+$/.test(el.dataset.bind)) {
+      const r = linkValidity(v); v = r.text;
+      if (r.days !== null && r.days !== num(q.validityDays)) {
+        q.validityDays = r.days;
+        const top = $('[data-bind="validityDays"]'); if (top) top.value = r.days;
+      }
+    }
     setPath(q, el.dataset.bind, v);
     touch(q); refreshPreview(); fitPreview();
     return;
@@ -1682,7 +1726,7 @@ document.addEventListener('change', e => {
     if (q.autoCodes && POS_CODE.test(String(it.code || '').trim())) it.code = '';
     to.items.push(it);
     touch(q); rerenderEditor(); focusItem(it.id);
-    toast(`Moved to ${to.name || 'Group ' + (q.sections.indexOf(to) + 1)} (end of the group)`);
+    toast(`Moved to ${groupName(to, q.sections.indexOf(to))} (end of the group)`);
     return;
   }
   if (el.matches('[data-autocodes]')) {
