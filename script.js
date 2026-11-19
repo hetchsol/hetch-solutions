@@ -84,63 +84,129 @@
         window.requestAnimationFrame(stepCount);
     }
 
-    // ---------- Quote form: WhatsApp / email ----------
+    // ---------- Quote form ----------
+    // Paste the Formspree form ID here (the part after formspree.io/f/).
+    // While it is empty, the form falls back to opening WhatsApp.
+    var FORMSPREE_ID = 'mjywrdqp';
+
     var form = document.getElementById('quoteForm');
     if (form) {
+        var useEmail = /^[A-Za-z0-9]+$/.test(FORMSPREE_ID);
         var nameInput = document.getElementById('qName');
         var phoneInput = document.getElementById('qPhone');
+        var emailInput = document.getElementById('qEmail');
         var messageInput = document.getElementById('qMessage');
         var okMsg = document.getElementById('formOk');
         var errMsg = document.getElementById('formErr');
         var mailLink = document.getElementById('mailLink');
+        var waLink = document.getElementById('waLink');
+        var submitBtn = form.querySelector('button[type="submit"]');
+        var submitLabel = document.getElementById('submitLabel');
+        var waIcon = document.getElementById('waIcon');
+        var sending = false;
+
+        if (useEmail) {
+            submitLabel.textContent = 'Send my quote request';
+            if (waIcon) waIcon.style.display = 'none';
+            document.getElementById('altWhatsApp').hidden = false;
+            document.getElementById('altEmail').hidden = true;
+        }
 
         var selectedService = function () {
             var checked = form.querySelector('input[name="service"]:checked');
             return checked ? checked.value : 'Not sure yet';
         };
+        var val = function (input) { return input ? input.value.trim() : ''; };
         var buildEnquiry = function () {
             return 'Hello Hetch Solutions, I would like a quote.\n\n' +
-                'Name: ' + (nameInput.value.trim() || '-') + '\n' +
-                'Phone: ' + (phoneInput.value.trim() || '-') + '\n' +
+                'Name: ' + (val(nameInput) || '-') + '\n' +
+                'Phone: ' + (val(phoneInput) || '-') + '\n' +
+                (val(emailInput) ? 'Email: ' + val(emailInput) + '\n' : '') +
                 'Service: ' + selectedService() + '\n' +
-                'Site details: ' + (messageInput.value.trim() || '-');
+                'Site details: ' + (val(messageInput) || '-');
         };
-        var updateMailLink = function () {
+        var updateLinks = function () {
             mailLink.href = 'mailto:' + EMAIL +
                 '?subject=' + encodeURIComponent('Quote request: ' + selectedService()) +
                 '&body=' + encodeURIComponent(buildEnquiry());
+            if (waLink) waLink.href = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(buildEnquiry());
         };
-        var showError = function () {
+        var showError = function (text, field) {
+            errMsg.textContent = text;
             errMsg.hidden = false;
             okMsg.hidden = true;
-            nameInput.setAttribute('aria-invalid', 'true');
-            nameInput.focus();
+            if (field) { field.setAttribute('aria-invalid', 'true'); field.focus(); }
+        };
+        var showOk = function (text) {
+            okMsg.textContent = text;
+            okMsg.hidden = false;
+            errMsg.hidden = true;
         };
         var clearError = function () {
             errMsg.hidden = true;
-            nameInput.removeAttribute('aria-invalid');
+            [nameInput, phoneInput, emailInput].forEach(function (f) { if (f) f.removeAttribute('aria-invalid'); });
         };
-
-        form.addEventListener('input', function (e) {
-            if (e.target === nameInput && nameInput.value.trim()) clearError();
-            updateMailLink();
-        });
-        form.addEventListener('change', updateMailLink);
-        updateMailLink();
-
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-            if (!nameInput.value.trim()) { showError(); return; }
+        // Returns true when the form is fine to send
+        var validate = function () {
+            if (!val(nameInput)) { showError('Please add your name so we know who to call back.', nameInput); return false; }
+            if (useEmail) {
+                if (!val(phoneInput) && !val(emailInput)) { showError('Please add a phone number or email so we can reach you.', phoneInput); return false; }
+                if (val(emailInput) && !emailInput.checkValidity()) { showError('That email address doesn’t look right. Please check it.', emailInput); return false; }
+            }
             clearError();
+            return true;
+        };
+        var openWhatsApp = function () {
             var url = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(buildEnquiry());
             var win = window.open(url, '_blank');
             if (win) { try { win.opener = null; } catch (err) { /* ignore */ } }
             else { window.location.href = url; } // pop-up blocked: open in the same tab
-            okMsg.hidden = false;
+            showOk('Thanks! Your request has opened in WhatsApp. Press send there and we’ll get back to you within one working day.');
+        };
+        var setSending = function (on) {
+            sending = on;
+            submitBtn.disabled = on;
+            submitLabel.textContent = on ? 'Sending…' : 'Send my quote request';
+        };
+        var sendEmail = function () {
+            var data = new FormData(form);
+            data.set('service', selectedService());
+            data.append('_subject', 'Quote request: ' + selectedService() + ' (' + val(nameInput) + ')');
+            if (!val(emailInput)) data.delete('email');
+            setSending(true);
+            fetch('https://formspree.io/f/' + FORMSPREE_ID, {
+                method: 'POST',
+                body: data,
+                headers: { 'Accept': 'application/json' }
+            }).then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                form.reset();
+                updateLinks();
+                showOk('Thanks! Your quote request has been sent. We’ll get back to you within one working day.');
+                okMsg.focus();
+            }).catch(function () {
+                showError('Sorry, your request didn’t send. Please try again, or use WhatsApp or call us.', null);
+            }).then(function () { setSending(false); });
+        };
+
+        form.addEventListener('input', function (e) {
+            if (e.target.getAttribute('aria-invalid') && e.target.value.trim()) clearError();
+            updateLinks();
+        });
+        form.addEventListener('change', updateLinks);
+        updateLinks();
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            if (sending || !validate()) return;
+            if (useEmail) sendEmail(); else openWhatsApp();
         });
 
-        mailLink.addEventListener('click', function (e) {
-            if (!nameInput.value.trim()) { e.preventDefault(); showError(); }
+        [mailLink, waLink].forEach(function (link) {
+            if (!link) return;
+            link.addEventListener('click', function (e) {
+                if (!val(nameInput)) { e.preventDefault(); showError('Please add your name so we know who to call back.', nameInput); }
+            });
         });
 
         // "Get an ICT / civil works / HVAC quote" links pre-select the service
@@ -148,7 +214,7 @@
             link.addEventListener('click', function () {
                 var value = link.getAttribute('data-service');
                 var radio = Array.prototype.find.call(form.querySelectorAll('input[name="service"]'), function (r) { return r.value === value; });
-                if (radio) { radio.checked = true; updateMailLink(); }
+                if (radio) { radio.checked = true; updateLinks(); }
             });
         });
     }

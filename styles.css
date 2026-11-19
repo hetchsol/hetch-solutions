@@ -308,6 +308,10 @@ section[id] { scroll-margin-top: var(--header-h); }
 .form-msg-ok { background: #E8F3EC; color: #14532D; }
 .form-msg-err { background: #FDECEC; color: #8A1C1C; }
 .form-alt { font-size: 14px; color: var(--muted); text-align: center; }
+.opt { font-weight: 400; color: var(--muted); }
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.quote-form { position: relative; }
+.quote-form button[disabled] { opacity: .7; cursor: progress; }
 
 /* ---------- Footer ---------- */
 .site-footer { background: var(--footer); color: #D3D9DF; padding-top: 64px; }

@@ -74,7 +74,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="preload" as="image" href="of_use/slides/telecom-tower.jpg">
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -350,8 +350,8 @@
 
             <form class="quote-form reveal" id="quoteForm" novalidate>
                 <h3>Request a quote</h3>
-                <div class="form-msg form-msg-ok" id="formOk" role="status" hidden>Thanks! Your request has opened in WhatsApp. Press send there and we’ll get back to you within one working day.</div>
-                <div class="form-msg form-msg-err" id="formErr" role="alert" hidden>Please add your name so we know who to call back.</div>
+                <div class="form-msg form-msg-ok" id="formOk" role="status" tabindex="-1" hidden></div>
+                <div class="form-msg form-msg-err" id="formErr" role="alert" hidden></div>
                 <div class="form-grid">
                     <label>Your name
                         <input type="text" id="qName" name="name" autocomplete="name" required>
@@ -359,7 +359,11 @@
                     <label>Phone or WhatsApp
                         <input type="tel" id="qPhone" name="phone" autocomplete="tel">
                     </label>
+                    <label>Email <span class="opt">(optional)</span>
+                        <input type="email" id="qEmail" name="email" autocomplete="email">
+                    </label>
                 </div>
+                <label class="hp" aria-hidden="true">Leave this empty<input type="text" name="_gotcha" tabindex="-1" autocomplete="off"></label>
                 <fieldset class="chips">
                     <legend>What do you need?</legend>
                     <label class="chip"><input type="radio" name="service" value="ICT &amp; Security" checked><span>ICT &amp; Security</span></label>
@@ -371,10 +375,11 @@
                     <textarea id="qMessage" name="message" rows="4" placeholder="Location, size of the site, what you need done…"></textarea>
                 </label>
                 <button type="submit" class="btn btn-primary btn-lg btn-shine btn-block">
-                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>
-                    Send my quote request on WhatsApp
+                    <svg id="waIcon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>
+                    <span id="submitLabel">Send my quote request on WhatsApp</span>
                 </button>
-                <p class="form-alt">No WhatsApp? <a href="mailto:hetchsolutions@outlook.com" id="mailLink">Send it by email instead</a> or call <a href="tel:+260966938945">+260 966 938 945</a></p>
+                <p class="form-alt" id="altWhatsApp" hidden>Prefer WhatsApp? <a href="https://wa.me/260966938945" id="waLink" target="_blank" rel="noopener noreferrer">Send it on WhatsApp</a> or call <a href="tel:+260966938945">+260 966 938 945</a></p>
+                <p class="form-alt" id="altEmail">No WhatsApp? <a href="mailto:hetchsolutions@outlook.com" id="mailLink">Send it by email instead</a> or call <a href="tel:+260966938945">+260 966 938 945</a></p>
             </form>
         </div>
     </section>
@@ -439,6 +444,6 @@
         <a href="#contact" class="mobile-bar-primary">Get a quote</a>
     </nav>
 
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 </html>
