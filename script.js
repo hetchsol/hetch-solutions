@@ -67,6 +67,28 @@
         revealEls.forEach(function (el) { el.classList.add('is-visible'); });
     }
 
+    // ---------- Hero circuit: power down after 30s lit, then replay ----------
+    var LIT_AT = 4700;       // ms until the logo is fully lit (ignite: 2.9s delay + 1.8s)
+    var STAY_LIT = 30000;    // how long the logo stays lit
+    var POWER_DOWN = 1600;   // fade-out time (matches .powering-down in styles.css)
+    var DARK_PAUSE = 800;    // short dark moment before the traces draw again
+    var scheduleCircuit = function () {
+        setTimeout(function () {
+            var circuit = document.querySelector('.circuit');
+            if (!circuit) return;
+            // skip the cycle while hidden (narrow screens) or the tab is in the background
+            if (!circuit.offsetParent || document.hidden) { scheduleCircuit(); return; }
+            circuit.classList.add('powering-down');
+            setTimeout(function () {
+                var fresh = circuit.cloneNode(true);   // a fresh copy restarts every CSS animation
+                fresh.classList.remove('powering-down');
+                circuit.parentNode.replaceChild(fresh, circuit);
+                scheduleCircuit();
+            }, POWER_DOWN + DARK_PAUSE);
+        }, LIT_AT + STAY_LIT);
+    };
+    if (!reduceMotion) scheduleCircuit();
+
     // ---------- Projects counter ----------
     var counter = document.querySelector('.count[data-target]');
     if (counter && !reduceMotion) {

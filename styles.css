@@ -184,6 +184,15 @@ section[id] { scroll-margin-top: var(--header-h); }
 .pk2 { background: #7DB4F0; box-shadow: 0 0 14px 4px rgba(74,144,226,.7); offset-path: path('M30 505 L30 174 L173 174'); animation-delay: 3.8s; }
 .pk3 { background: #F4F6F8; box-shadow: 0 0 12px 3px rgba(201,206,211,.7); offset-path: path('M12 505 L12 20 L341 20 L341 72'); animation-delay: 5s; }
 @keyframes travel { 0% { offset-distance: 0%; opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+/* power-down before the circuit replays (class added by script.js) */
+.circuit.powering-down .logo-flash { animation: none; }
+.circuit.powering-down .logo-img { animation: powerdown 1.6s ease-in forwards; }
+.circuit.powering-down svg, .circuit.powering-down .pkt { transition: opacity 1.2s ease-in; opacity: 0; }
+@keyframes powerdown {
+    0% { opacity: 1; filter: grayscale(0) brightness(1) saturate(1) drop-shadow(0 0 12px rgba(62,230,216,.35)); }
+    12% { opacity: 1; filter: grayscale(0) brightness(1.35) saturate(1.2) drop-shadow(0 0 20px rgba(62,230,216,.7)); }
+    100% { opacity: .15; filter: grayscale(1) brightness(.6) drop-shadow(0 0 0 rgba(62,230,216,0)); }
+}
 
 /* ---------- Clients marquee ---------- */
 .clients { background: var(--grey-band); border-bottom: 1px solid #D3D9DF; }
@@ -345,7 +354,9 @@ section[id] { scroll-margin-top: var(--header-h); }
     .hero h1 { max-width: min(880px, calc(100vw - 620px)); }
 }
 @media (max-width: 1280px) {
-    .circuit { display: none; }
+    /* below desktop the circuit sits above the headline instead of beside it, scaled to fit */
+    .circuit { position: relative; z-index: 2; top: auto; right: auto; transform-origin: 0 0; transform: scale(.75); margin: 40px 0 -130px max(24px, calc(50% - 596px)); }
+    .hero-inner { padding-top: 12px; }
 }
 @media (max-width: 1080px) {
     .footer-grid { grid-template-columns: 1fr 1fr; }
@@ -366,7 +377,8 @@ section[id] { scroll-margin-top: var(--header-h); }
     :root { --header-h: 70px; }
     .brand img { height: 46px; }
     .header-actions .btn-sm { display: none; }
-    .hero-inner { padding-top: 72px; padding-bottom: 40px; }
+    .hero-inner { padding-top: 4px; padding-bottom: 40px; gap: 22px; }
+    .circuit { transform: scale(.54); margin: 16px 0 -239px 24px; }
     .creds { margin-top: 40px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cred { padding: 16px; }
     .cred strong { font-size: 19px; }
@@ -395,6 +407,9 @@ section[id] { scroll-margin-top: var(--header-h); }
     .mobile-bar .mobile-bar-primary { background: var(--blue); }
 }
 
+@media (max-width: 380px) {
+    .circuit { transform: scale(.5); margin-bottom: -260px; }
+}
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation: none !important; transition: none !important; }
