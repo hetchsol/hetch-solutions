@@ -231,6 +231,15 @@
             });
         });
 
+        // contact.html?service=HVAC (from the service cards) pre-selects the service
+        try {
+            var wanted = new URLSearchParams(window.location.search).get('service');
+            if (wanted) {
+                var match = Array.prototype.find.call(form.querySelectorAll('input[name="service"]'), function (r) { return r.value === wanted; });
+                if (match) { match.checked = true; updateLinks(); }
+            }
+        } catch (err) { /* old browser: leave the default */ }
+
         // "Get an ICT / civil works / HVAC quote" links pre-select the service
         document.querySelectorAll('[data-service]').forEach(function (link) {
             link.addEventListener('click', function () {
