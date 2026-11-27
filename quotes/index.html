@@ -1425,7 +1425,8 @@ async function makePdfBlob(q) {
     return await html2pdf().set({
       margin: [10, 11, 10, 11], filename: pdfFileName(q),
       image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+      // scrollX/scrollY 0: otherwise a scrolled page gives a blank or cut-off PDF; windowWidth: desktop layout even on phones
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, scrollX: 0, scrollY: 0, windowWidth: 1200 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.bottom', '.bank', '.terms div'] }
     }).from(host.firstElementChild).outputPdf('blob');
@@ -1464,16 +1465,14 @@ function canShareFiles() {
 }
 function openShare() {
   const q = current(); if (!q) return;
-  const native = canShareFiles();
+  const native = canShareFiles();   // phones, and Chrome/Edge on Windows: can hand the PDF file to WhatsApp
+  let pdf = null;
   openModal(`<h2>Share ${esc(quoteNo(q))}</h2>
-    <div class="hint">WhatsApp and email links can't attach files by themselves, so get the PDF first, then attach it in the chat or email.</div>
-
-    <div class="share-step"><h4><span class="num">1</span> Get the PDF</h4>
-      <div class="share-row">
-        <button class="btn primary" id="shDownload">Download PDF</button>
-        ${native ? `<button class="btn" id="shNative">Share PDF…</button>` : ''}
+    <div class="share-step"><h4><span class="num">1</span> PDF</h4>
+      <div class="share-row" style="align-items:center">
+        <span class="hint" id="shPdfState" style="flex:1;min-width:180px">Preparing the PDF…</span>
+        <button class="btn" id="shDownload" data-needpdf disabled>Download PDF</button>
       </div>
-      <div class="hint" id="shPdfState" style="margin-top:6px">${native ? '<strong>Share PDF…</strong> opens the Windows share window and sends the PDF straight to WhatsApp Desktop, Outlook or Mail, if installed.' : ''}</div>
     </div>
 
     <div class="share-step"><h4><span class="num">2</span> Message</h4>
@@ -1482,52 +1481,70 @@ function openShare() {
 
     <div class="share-step"><h4><span class="num">3</span> Send</h4>
       <div class="share-row">
-        <label class="f">WhatsApp number<input type="text" id="shPhone" value="${esc(intlPhone(q.client.cell))}" placeholder="e.g. 260966123456"></label>
-        <button class="btn wa" id="shWa">Open WhatsApp</button>
+        ${native ? '' : `<label class="f">WhatsApp number<input type="text" id="shPhone" value="${esc(intlPhone(q.client.cell))}" placeholder="e.g. 260966123456"></label>`}
+        <button class="btn wa" id="shWa" data-needpdf disabled>Send PDF on WhatsApp</button>
+        ${native ? '<button class="btn" id="shNative" data-needpdf disabled>Other apps…</button>' : ''}
       </div>
+      <div class="hint" style="margin-top:6px">${native
+        ? 'Choose <strong>WhatsApp</strong>, then the client\'s chat: the PDF goes as an attachment with the message. The message is also copied, so you can paste it if WhatsApp leaves it out.'
+        : 'This browser can\'t pass files to WhatsApp, so the PDF is saved to Downloads and WhatsApp opens with the message: attach the PDF with 📎 (or drag it into the chat).'}</div>
       <div class="share-row" style="margin-top:10px">
         <label class="f">Email to<input type="email" id="shEmail" value="${esc(q.client.email)}" placeholder="client@company.com"></label>
         <label class="f">Subject<input type="text" id="shSubj" value="${esc(docName(q) + ' ' + quoteNo(q) + ' - ' + state.settings.company.name)}"></label>
-        <button class="btn primary" id="shMail">Open email</button>
+        <button class="btn primary" id="shMail" data-needpdf disabled>Open email</button>
       </div>
+      <div class="hint" style="margin-top:6px">Email links can't attach files: the PDF is saved to Downloads first, then attach it in the email.</div>
     </div>
     <div class="actions" style="justify-content:space-between;align-items:center">
       <label style="font-size:13px"><input type="checkbox" id="shareMarkSent" ${q.status === 'draft' ? 'checked' : ''}> Mark quote as <strong>Sent</strong></label>
       <button class="btn" data-x>Close</button>
     </div>`, m => {
     $('[data-x]', m).onclick = closeModal;
-    const info = $('#shPdfState', m);
-    const withPdf = async (btn, fn) => {
-      const label = btn.textContent; btn.disabled = true; btn.textContent = 'Preparing PDF…';
-      try { const blob = await makePdfBlob(q); await fn(blob); }
-      catch (e) {
-        if (e && e.name === 'AbortError') { /* share window closed */ }
-        else if (e && e.message === 'offline') info.textContent = 'Creating the PDF needs an internet connection the first time it is used. Use Print → Save as PDF instead.';
-        else { info.textContent = 'Could not create the PDF. Use Print → Save as PDF instead.'; console.error(e); }
-      } finally { btn.disabled = false; btn.textContent = label; }
-    };
-    $('#shDownload', m).onclick = e => withPdf(e.currentTarget, blob => {
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = pdfFileName(q);
+    const info = $('#shPdfState', m), msg = () => $('#shMsg', m).value;
+    const enable = () => $all('[data-needpdf]', m).forEach(b => { b.disabled = false; });
+    // make the PDF as soon as the window opens, so the share window can open straight from the tap
+    // (phones refuse to open it if the tap was several seconds ago)
+    makePdfBlob(q).then(blob => {
+      pdf = new File([blob], pdfFileName(q), { type: 'application/pdf' });
+      info.innerHTML = '✓ PDF ready: <strong>' + esc(pdfFileName(q)) + '</strong>';
+      enable();
+    }).catch(e => {
+      console.error(e);
+      info.textContent = e && e.message === 'offline'
+        ? 'The PDF needs an internet connection the first time. Use Print → Save as PDF, then attach it.'
+        : 'Could not create the PDF. Use Print → Save as PDF, then attach it.';
+      enable(); $('#shDownload', m).disabled = true;
+    });
+    const download = () => {
+      if (!pdf) return false;
+      const a = document.createElement('a'); a.href = URL.createObjectURL(pdf); a.download = pdf.name;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      info.textContent = '✓ Saved "' + pdfFileName(q) + '" to your Downloads folder.'; markSent(q);
+      return true;
+    };
+    const copyMsg = () => { try { navigator.clipboard && navigator.clipboard.writeText(msg()).catch(() => {}); } catch (e) {} };
+    const share = (data) => navigator.share(data).then(() => markSent(q)).catch(e => {
+      if (e && e.name === 'AbortError') return;   // share window closed
+      console.error(e); info.textContent = 'The share window could not open. Use Download PDF and attach it in WhatsApp.';
     });
-    const nb = $('#shNative', m);
-    if (nb) nb.onclick = e => withPdf(e.currentTarget, async blob => {
-      const file = new File([blob], pdfFileName(q), { type: 'application/pdf' });
-      await navigator.share({ files: [file], title: docName(q) + ' ' + quoteNo(q), text: $('#shMsg', m).value });
-      markSent(q);
-    });
+    $('#shDownload', m).onclick = () => { if (download()) { info.textContent = '✓ Saved "' + pdf.name + '" to your Downloads folder.'; markSent(q); } };
     $('#shWa', m).onclick = () => {
-      const ph = intlPhone($('#shPhone', m).value);
-      window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent($('#shMsg', m).value), '_blank', 'noopener');
+      if (native && pdf) { copyMsg(); share({ files: [pdf], text: msg() }); return; }
+      const saved = download();
+      const ph = $('#shPhone', m) ? intlPhone($('#shPhone', m).value) : '';
+      window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg()), '_blank', 'noopener');
+      if (saved) info.innerHTML = '✓ Saved <strong>' + esc(pdf.name) + '</strong> to Downloads. In the WhatsApp chat, attach it with 📎 or drag it in.';
       markSent(q);
     };
+    const nb = $('#shNative', m);
+    if (nb) nb.onclick = () => { if (pdf) { copyMsg(); share({ files: [pdf], title: docName(q) + ' ' + quoteNo(q), text: msg() }); } };
     $('#shMail', m).onclick = () => {
+      const saved = download();
       const to = $('#shEmail', m).value.trim();
       const url = 'mailto:' + encodeURIComponent(to).replace(/%40/g, '@')
         + '?subject=' + encodeURIComponent($('#shSubj', m).value)
-        + '&body=' + encodeURIComponent($('#shMsg', m).value.replace(/\n/g, '\r\n'));
-      window.location.href = url; markSent(q);
+        + '&body=' + encodeURIComponent(msg().replace(/\n/g, '\r\n'));
+      if (saved) info.innerHTML = '✓ Saved <strong>' + esc(pdf.name) + '</strong> to Downloads. Attach it in the email.';
+      setTimeout(() => { window.location.href = url; }, saved ? 300 : 0); markSent(q);
     };
   });
 }
